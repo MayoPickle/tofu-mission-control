@@ -1,0 +1,108 @@
+{
+  "thank_gift": {
+    "giftStrings": [],
+    "thankGiftRuleSets": [],
+    "codeStrings": [],
+    "is_open": true,
+    "is_live_open": false,
+    "is_open_self": false,
+    "is_tx_shield": false,
+    "is_num": false,
+    "shield_status": 0,
+    "list_gift_shield_status": 0,
+    "list_people_shield_status": 0,
+    "thank_status": 0,
+    "num": 1,
+    "delaytime": 3,
+    "thank": "%uName%大佬出手就是王炸！%Type%%GiftName%+x%Num%，豪气冲天！\n%uName%大佬的%Type%%GiftName%+x%Num%，这不是凡人能有的气魄！\n%uName%%Type%%GiftName%+x%Num%，今天又是被大佬宠幸的一天！\n%uName%大佬出招！%Type%%GiftName%+x%Num%，这波直接封神！\n感谢%uName%的%Type%%GiftName%+x%Num%，这手笔，属实霸道！\n%uName%一掷千金，%Type%%GiftName%+x%Num%已到账，太狠了！\n%uName%降下%GiftName%+x%Num%，这排面够我吹一年！\n%uName%大佬的%Type%%GiftName%+x%Num%，我这小身板都快撑不住了！\n感谢%uName%的%GiftName%+x%Num%我必铭记于心！\n%uName%直接开大！%GiftName%+x%Num%，我连膝盖都跪烂了！",
+    "is_guard_report": false,
+    "is_guard_local": false,
+    "is_gift_code": false,
+    "report": "",
+    "report_barrage": ""
+  },
+  "advert": {
+    "is_open": false,
+    "is_live_open": false,
+    "status": 1,
+    "time": 3,
+    "adverts": ""
+  },
+  "follow": {
+    "is_open": false,
+    "is_live_open": false,
+    "is_tx_shield": false,
+    "is_rd_shield": false,
+    "num": 1,
+    "follows": "谢谢%uNames%的关注~",
+    "delaytime": 3
+  },
+  "reply": {
+    "autoReplySets": [],
+    "is_open": false,
+    "is_live_open": false,
+    "is_open_self": false,
+    "time": 0,
+    "list_people_shield_status": 0
+  },
+  "clock_in": {
+    "is_open": false,
+    "time": "00:35:00",
+    "barrage": "签到"
+  },
+  "welcome": {
+    "is_open": true,
+    "is_live_open": false,
+    "is_tx_shield": false,
+    "is_rd_shield": false,
+    "num": 1,
+    "welcomes": "欢迎%uNames%大驾光临，服务器都激动得抖三抖！\n%uNames%终于来了！快坐，瓜子零食都给你备好了！\n哎呀，%uNames%一来，这里瞬间就热闹了！\n热烈欢迎%uNames%，你的专属红毯已铺好！\n欢迎%uNames%，服务器因为你发光发热了！\n%uNames%登场！今天也是被大佬支配的一天！\n欢迎%uNames%！你一来，这气场瞬间不一样了！\n%uNames%终于来了，队形摆好，掌声响起来！\n欢迎%uNames%，系统已自动为你播放BGM！\n%uNames%入场，全体起立，敬礼！",
+    "delaytime": 3,
+    "list_people_shield_status": 0
+  },
+  "auto_gift": {
+    "is_open": false,
+    "time": "23:45:00",
+    "room_id": ""
+  },
+  "privacy": {
+    "is_open": false,
+    "small_heart_url": "http://biliheart-1.herokuapp.com/enc"
+  },
+  "black": {
+    "names": [],
+    "uids": [],
+    "fuzzy_query": false,
+    "all": false,
+    "thank_gift": false,
+    "thank_welcome": false,
+    "thank_follow": false,
+    "auto_reply": false
+  },
+  "is_auto": true,
+  "win_auto_openSet": true,
+  "auto_save_set": false,
+  "is_barrage": true,
+  "is_barrage_guard": true,
+  "is_barrage_vip": true,
+  "is_barrage_manager": true,
+  "is_barrage_medal": false,
+  "is_barrage_ul": false,
+  "is_barrage_anchor_shield": false,
+  "is_block": true,
+  "is_cmd": true,
+  "is_gift": true,
+  "is_gift_free": true,
+  "is_welcome_ye": true,
+  "is_welcome_all": false,
+  "is_follow_dm": true,
+  "is_log": false,
+  "is_online": false,
+  "is_manager_login": false,
+  "manager_maxSize": 10,
+  "manager_key": "",
+  "is_sh": false,
+  "is_dosign": false,
+  "sign_time": "00:30:00",
+  "edition": "2.7.0.1"
+}

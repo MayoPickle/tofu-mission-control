@@ -1,0 +1,108 @@
+{
+  "thank_gift": {
+    "giftStrings": [],
+    "thankGiftRuleSets": [],
+    "codeStrings": [],
+    "is_open": false,
+    "is_live_open": false,
+    "is_open_self": false,
+    "is_tx_shield": false,
+    "is_num": false,
+    "shield_status": 0,
+    "list_gift_shield_status": 0,
+    "list_people_shield_status": 0,
+    "thank_status": 0,
+    "num": 1,
+    "delaytime": 3,
+    "thank": "感谢%uName%大佬%Type%的%GiftName%+x%Num%~",
+    "is_guard_report": false,
+    "is_guard_local": false,
+    "is_gift_code": false,
+    "report": "",
+    "report_barrage": ""
+  },
+  "advert": {
+    "is_open": true,
+    "is_live_open": true,
+    "status": 1,
+    "time": 8,
+    "adverts": "修炼"
+  },
+  "follow": {
+    "is_open": false,
+    "is_live_open": false,
+    "is_tx_shield": false,
+    "is_rd_shield": false,
+    "num": 1,
+    "follows": "谢谢%uNames%的关注~",
+    "delaytime": 3
+  },
+  "reply": {
+    "autoReplySets": [],
+    "is_open": false,
+    "is_live_open": false,
+    "is_open_self": false,
+    "time": 0,
+    "list_people_shield_status": 0
+  },
+  "clock_in": {
+    "is_open": false,
+    "time": "00:35:00",
+    "barrage": "签到"
+  },
+  "welcome": {
+    "is_open": false,
+    "is_live_open": false,
+    "is_tx_shield": false,
+    "is_rd_shield": false,
+    "num": 1,
+    "welcomes": "欢迎%uNames%的进入直播间~",
+    "delaytime": 3,
+    "list_people_shield_status": 0
+  },
+  "auto_gift": {
+    "is_open": false,
+    "time": "23:45:00",
+    "room_id": ""
+  },
+  "privacy": {
+    "is_open": false,
+    "small_heart_url": "http://biliheart-1.herokuapp.com/enc"
+  },
+  "black": {
+    "names": [],
+    "uids": [],
+    "fuzzy_query": false,
+    "all": false,
+    "thank_gift": false,
+    "thank_welcome": false,
+    "thank_follow": false,
+    "auto_reply": false
+  },
+  "is_auto": false,
+  "win_auto_openSet": true,
+  "auto_save_set": false,
+  "is_barrage": true,
+  "is_barrage_guard": true,
+  "is_barrage_vip": true,
+  "is_barrage_manager": true,
+  "is_barrage_medal": false,
+  "is_barrage_ul": false,
+  "is_barrage_anchor_shield": false,
+  "is_block": true,
+  "is_cmd": true,
+  "is_gift": true,
+  "is_gift_free": true,
+  "is_welcome_ye": true,
+  "is_welcome_all": false,
+  "is_follow_dm": true,
+  "is_log": false,
+  "is_online": false,
+  "is_manager_login": false,
+  "manager_maxSize": 10,
+  "manager_key": "",
+  "is_sh": false,
+  "is_dosign": false,
+  "sign_time": "00:30:00",
+  "edition": "2.7.0.1"
+}

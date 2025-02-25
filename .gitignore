@@ -1,0 +1,64 @@
+# Byte编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 虚拟环境
+venv/
+env/
+.virtualenv/
+
+# 安装包
+*.egg-info/
+*.egg
+*.whl
+dist/
+build/
+pip-wheel-metadata/
+
+# 日志和临时文件
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+*.orig
+
+# IDE / 编辑器
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.iml
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# pytest / unittest 生成的文件
+.coverage
+htmlcov/
+.tox/
+.nosetests*
+.cache/
+.pytest_cache/
+tests/.pytest_cache/
+
+# Django
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# MacOS / Linux / Windows 系统文件
+.DS_Store
+Thumbs.db
+*.~lock
+
+# mypy 类型检查
+.mypy_cache/
+
+# tox
+.tox/
+
+room_id_config.json
+account_cookies.json
