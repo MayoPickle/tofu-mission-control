@@ -24,7 +24,6 @@ class DanmakuGiftApp:
 
         # ---------- 初始化电池统计管理 ----------
         self.battery_tracker = BatteryTracker(
-            log_file=self.config["log_file"],
             reset_hour=self.config["reset_hour"]
         )
 
