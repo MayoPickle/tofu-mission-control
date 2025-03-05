@@ -3,7 +3,6 @@ import traceback
 import re
 import datetime
 
-# 假设这些模块都在 modules/ 下
 from modules.config_loader import ConfigLoader
 from modules.room_config_manager import RoomConfigManager
 from modules.battery_tracker import BatteryTracker
