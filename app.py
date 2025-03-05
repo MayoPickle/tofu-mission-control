@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import traceback
 import re
 import datetime
+import os
 
 from modules.config_loader import ConfigLoader
 from modules.room_config_manager import RoomConfigManager
@@ -18,6 +19,10 @@ class DanmakuGiftApp:
         # ---------- 初始化配置 ----------
         self.config_loader = ConfigLoader(config_path)
         self.config = self.config_loader.get_config()
+        
+        # 确保配置中不包含已移除的log_file配置项
+        if "log_file" in self.config:
+            del self.config["log_file"]
 
         # ---------- 初始化房间配置管理 ----------
         self.room_config_manager = RoomConfigManager(room_config_path, self.config)
