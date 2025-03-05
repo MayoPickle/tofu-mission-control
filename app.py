@@ -63,16 +63,16 @@ class DanmakuGiftApp:
 
             # ---------- 根据弹幕关键字决定业务逻辑 ----------
             if "全境" in danmaku:
-                power = 16
+                power = 5
                 is_special_all = True
             else:
                 is_special_all = False
                 if "泰坦" in danmaku:
-                    power = 8
+                    power = 4
                     num = 100
                     account = "titan"
                 elif "强袭" in danmaku:
-                    power = 4
+                    power = 3
                     num = 10
                     account = "striker"
                 else:
@@ -86,7 +86,7 @@ class DanmakuGiftApp:
 
             if not re.search(target_number, danmaku):
                 msg = f"danmaku 不包含 {target_number}, 无法触发脚本"
-                notifee.send_danmaku(room_id, "口令错误！")
+                notifee.send_danmaku(room_id, "喵喵喵！喵！")
                 print(f"[DEBUG] {msg}")
                 return jsonify({"status": "failed", "reason": msg}), 400
 
@@ -108,13 +108,13 @@ class DanmakuGiftApp:
                     if room_hourly_used + total_need > max_hourly:
                         msg = f"房间 {room_id} 小时电池超上限 (已用:{room_hourly_used}, 计划:{total_need}, 上限:{max_hourly})"
                         print(f"[DEBUG] {msg}")
-                        notifee.send_danmaku(room_id, f"小时配额上限！{room_hourly_used + total_need}/{max_hourly}")
+                        notifee.send_danmaku(room_id, f"喵喵，小时{room_hourly_used + total_need}喵{max_hourly}")
                         return jsonify({"status": "failed", "reason": msg}), 400
 
                     if room_daily_used + total_need > max_daily:
                         msg = f"房间 {room_id} 日电池超上限 (已用:{room_daily_used}, 计划:{total_need}, 上限:{max_daily})"
                         print(f"[DEBUG] {msg}")
-                        notifee.send_danmaku(room_id, f"当日配额上限！{room_daily_used + total_need}/{max_daily}")
+                        notifee.send_danmaku(room_id, f"喵喵，天{room_daily_used + total_need}喵{max_daily}")
                         return jsonify({"status": "failed", "reason": msg}), 400
 
                     self.battery_tracker.hourly_battery_count[room_id] = room_hourly_used + total_need
@@ -125,13 +125,13 @@ class DanmakuGiftApp:
                     if room_hourly_used + num > max_hourly:
                         msg = f"房间 {room_id} 小时电池超上限 (已用:{room_hourly_used}, 计划:{num}, 上限:{max_hourly})"
                         print(f"[DEBUG] {msg}")
-                        notifee.send_danmaku(room_id, f"小时配额上限！{room_hourly_used}/{max_hourly}")
+                        notifee.send_danmaku(room_id, f"喵喵，小时{room_hourly_used}喵{max_hourly}")
                         return jsonify({"status": "failed", "reason": msg}), 400
 
                     if room_daily_used + num > max_daily:
                         msg = f"房间 {room_id} 日电池超上限 (已用:{room_daily_used}, 计划:{num}, 上限:{max_daily})"
                         print(f"[DEBUG] {msg}")
-                        notifee.send_danmaku(room_id, f"当日配额上限！{room_daily_used}/{max_daily}")
+                        notifee.send_danmaku(room_id, f"喵喵，天{room_daily_used}喵{max_daily}")
                         return jsonify({"status": "failed", "reason": msg}), 400
 
                     self.battery_tracker.hourly_battery_count[room_id] = room_hourly_used + num
@@ -182,13 +182,13 @@ class DanmakuGiftApp:
             if room_hourly_used + num > max_hourly:
                 msg = f"房间 {room_id} 小时电池超上限 (已用:{room_hourly_used}, 计划:{num}, 上限:{max_hourly})"
                 print(f"[DEBUG] {msg}")
-                notifee.send_danmaku(room_id, f"小时配额上限！{room_hourly_used}/{max_hourly}")
+                notifee.send_danmaku(room_id, f"喵喵，小时{room_hourly_used}喵{max_hourly}")
                 return jsonify({"status": "failed", "reason": msg}), 400
 
             if room_daily_used + num > max_daily:
                 msg = f"房间 {room_id} 日电池超上限 (已用:{room_daily_used}, 计划:{num}, 上限:{max_daily})"
                 print(f"[DEBUG] {msg}")
-                notifee.send_danmaku(room_id, f"当日配额上限！{room_daily_used}/{max_daily}")
+                notifee.send_danmaku(room_id, f"喵喵，天{room_daily_used}喵{max_daily}")
                 return jsonify({"status": "failed", "reason": msg}), 400
 
             self.battery_tracker.hourly_battery_count[room_id] = room_hourly_used + num
