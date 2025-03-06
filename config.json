@@ -1,7 +1,6 @@
 {
   "max_hourly_battery_per_room": 20,
   "max_daily_battery": 50,
-  "reset_hour": 16,
-  "log_file": "log/data.log"
+  "reset_hour": 16
 }
 

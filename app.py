@@ -2,8 +2,8 @@ from flask import Flask, request, jsonify
 import traceback
 import re
 import datetime
+import os
 
-# 假设这些模块都在 modules/ 下
 from modules.config_loader import ConfigLoader
 from modules.room_config_manager import RoomConfigManager
 from modules.battery_tracker import BatteryTracker
@@ -19,13 +19,16 @@ class DanmakuGiftApp:
         # ---------- 初始化配置 ----------
         self.config_loader = ConfigLoader(config_path)
         self.config = self.config_loader.get_config()
+        
+        # 确保配置中不包含已移除的log_file配置项
+        if "log_file" in self.config:
+            del self.config["log_file"]
 
         # ---------- 初始化房间配置管理 ----------
         self.room_config_manager = RoomConfigManager(room_config_path, self.config)
 
         # ---------- 初始化电池统计管理 ----------
         self.battery_tracker = BatteryTracker(
-            log_file=self.config["log_file"],
             reset_hour=self.config["reset_hour"]
         )
 

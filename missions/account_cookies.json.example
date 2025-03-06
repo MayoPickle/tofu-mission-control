@@ -1,0 +1,14 @@
+{
+  "ghost": {
+    "cookie": "SESSDATA=xxxx; bili_jct=xxxx"
+  },
+  "striker": {
+    "cookie": "SESSDATA=xxxx; bili_jct=xxxx"
+  },
+  "titan": {
+    "cookie": "SESSDATA=xxxx; bili_jct=xxxx"
+  },
+  "sentry": {
+    "cookie": "SESSDATA=xxxx; bili_jct=xxxx"
+  }
+}
