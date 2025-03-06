@@ -70,7 +70,11 @@ class DanmakuGiftApp:
                 is_special_all = True
             else:
                 is_special_all = False
-                if "泰坦" in danmaku:
+                if "急急急" in danmaku:
+                    power = 6
+                    num = 1
+                    account = "sentry"
+                elif "泰坦" in danmaku:
                     power = 4
                     num = 100
                     account = "titan"
