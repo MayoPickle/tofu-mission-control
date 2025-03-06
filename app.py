@@ -101,14 +101,15 @@ class DanmakuGiftApp:
                 room_daily_used = self.battery_tracker.daily_battery_count_by_room.get(room_id, 0)
 
                 if is_special_all:
-                    # 特殊逻辑：分发给三个账号
-                    num_each = min(max_hourly // 3, 100)
-                    total_need = num_each * 3
+                    # 特殊逻辑：计算剩余可用额度，分发给三个账号
+                    remaining_hourly = max_hourly - room_hourly_used
+                    num_each = max(1, remaining_hourly // 3)  # 每个账号至少分配1个，否则平均分配
+                    total_need = num_each * 3  # 总共需要的电池数量
 
-                    if room_hourly_used + total_need > max_hourly:
-                        msg = f"房间 {room_id} 小时电池超上限 (已用:{room_hourly_used}, 计划:{total_need}, 上限:{max_hourly})"
+                    if total_need <= 0:
+                        msg = f"房间 {room_id} 小时电池已用完 (已用:{room_hourly_used}, 上限:{max_hourly})"
                         print(f"[DEBUG] {msg}")
-                        notifee.send_danmaku(room_id, f"喵喵，小时{room_hourly_used + total_need}喵{max_hourly}")
+                        notifee.send_danmaku(room_id, f"喵喵，小时电池已用完喵")
                         return jsonify({"status": "failed", "reason": msg}), 400
 
                     if room_daily_used + total_need > max_daily:
@@ -120,7 +121,7 @@ class DanmakuGiftApp:
                     self.battery_tracker.hourly_battery_count[room_id] = room_hourly_used + total_need
                     self.battery_tracker.daily_battery_count_by_room[room_id] = room_daily_used + total_need
 
-                    print(f"[DEBUG] [全境] 房间 {room_id} 更新用量：小时 {room_hourly_used+total_need}/{max_hourly}, 日 {room_daily_used+total_need}/{max_daily}")
+                    print(f"[DEBUG] [全境] 房间 {room_id} 更新用量：小时 {room_hourly_used+total_need}/{max_hourly}, 日 {room_daily_used+total_need}/{max_daily}, 每个账号分配 {num_each} 个")
                 else:
                     if room_hourly_used + num > max_hourly:
                         msg = f"房间 {room_id} 小时电池超上限 (已用:{room_hourly_used}, 计划:{num}, 上限:{max_hourly})"
@@ -141,11 +142,11 @@ class DanmakuGiftApp:
             
             # ---------- 发送礼物 ----------
             if is_special_all:
-                num_each = min(max_hourly // 3, 100)
+                # 获取当前可用电池，平均分配给三个账号
                 accounts = ["titan", "striker", "ghost"]
                 for acc in accounts:
                     self.gift_sender.send_gift(room_id, num_each, acc, gift_id)
-                return jsonify({"status": "success", "message": "Gift sent successfully (全境)"}), 200
+                return jsonify({"status": "success", "message": f"Gift sent successfully (全境), 每账号 {num_each} 个"}), 200
             else:
                 self.gift_sender.send_gift(room_id, num, account, gift_id)
                 return jsonify({"status": "success", "message": "Gift sent successfully"}), 200
