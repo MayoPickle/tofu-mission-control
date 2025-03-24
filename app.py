@@ -340,7 +340,7 @@ class DanmakuGiftApp:
             print(f"[ERROR] Failed to run spider: {str(e)}")
             traceback.print_exc()
 
-    def run(self, host='0.0.0.0', port=8085, debug=True):
+    def run(self, host='0.0.0.0', port=8081, debug=True):
         self.app.run(host=host, port=port, debug=debug)
 
 
