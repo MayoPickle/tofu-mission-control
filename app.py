@@ -3,6 +3,9 @@ import traceback
 import re
 import datetime
 import os
+import threading
+import subprocess
+import json
 
 from modules.config_loader import ConfigLoader
 from modules.room_config_manager import RoomConfigManager
@@ -41,6 +44,7 @@ class DanmakuGiftApp:
     def register_routes(self):
         self.app.add_url_rule('/ticket', view_func=self.process_ticket, methods=['POST'])
         self.app.add_url_rule('/pk_wanzun', view_func=self.handle_pk_wanzun, methods=['POST'])
+        self.app.add_url_rule('/live_room_spider', view_func=self.start_live_room_spider, methods=['POST'])
 
     @staticmethod
     def generate_target_number(power: int):
@@ -215,7 +219,128 @@ class DanmakuGiftApp:
             traceback.print_exc()
             return jsonify({"error": "Unknown error in subprocess", "details": str(e)}), 500
 
-    def run(self, host='0.0.0.0', port=8081, debug=True):
+    def start_live_room_spider(self):
+        """
+        API endpoint to start a Bilibili live room spider with the provided room IDs.
+        接受两种格式的请求:
+        1. {"room_ids": [房间ID列表]}
+        2. {"room_id": 房间ID, "stop_live_room_list": 包含房间ID的数据}
+        """
+        try:
+            print(f"[DEBUG] Received live_room_spider request: {request.json}")
+            data = request.json
+            
+            # 处理第一种格式：直接提供room_ids列表
+            if data and 'room_ids' in data and isinstance(data['room_ids'], list):
+                room_ids = data['room_ids']
+            # 处理第二种格式：提供room_id和stop_live_room_list
+            elif data and 'room_id' in data and 'stop_live_room_list' in data:
+                # 从stop_live_room_list中提取房间ID
+                stop_live_rooms = data.get('stop_live_room_list', {})
+                print(f"[DEBUG] Extracted stop_live_room_list: {stop_live_rooms}")
+                
+                # 如果stop_live_room_list是字典，我们尝试从中提取房间ID列表
+                if isinstance(stop_live_rooms, dict):
+                    # 假设stop_live_room_list的内容是以房间ID为键的字典
+                    # 或者包含房间ID列表的字段
+                    room_ids = []
+                    
+                    # 特别检查room_id_list字段（根据日志输出发现的关键字段）
+                    if 'room_id_list' in stop_live_rooms and isinstance(stop_live_rooms['room_id_list'], list):
+                        room_ids = stop_live_rooms['room_id_list']
+                        print(f"[DEBUG] Found room_ids in 'room_id_list' field: {room_ids}")
+                    # 尝试其他可能的数据结构
+                    elif 'room_ids' in stop_live_rooms and isinstance(stop_live_rooms['room_ids'], list):
+                        room_ids = stop_live_rooms['room_ids']
+                    elif 'list' in stop_live_rooms and isinstance(stop_live_rooms['list'], list):
+                        room_ids = stop_live_rooms['list']
+                    else:
+                        # 只有在无法找到任何房间ID列表字段时，才尝试使用键
+                        try_keys = list(stop_live_rooms.keys())
+                        # 检查键是否都是数字（即可能是房间ID）
+                        if all(str(k).isdigit() for k in try_keys):
+                            room_ids = try_keys
+                        
+                    print(f"[DEBUG] Extracted room_ids from stop_live_room_list: {room_ids[:5]}{'...' if len(room_ids) > 5 else ''} (total: {len(room_ids)})")
+                
+                # 如果stop_live_room_list已经是列表，直接使用
+                elif isinstance(stop_live_rooms, list):
+                    room_ids = stop_live_rooms
+                else:
+                    # 如果无法从数据中提取房间ID，使用请求中的room_id
+                    room_ids = [data['room_id']]
+            else:
+                print(f"[DEBUG] Invalid request format: {data}")
+                return jsonify({"error": "Invalid request format, expected 'room_ids' list or 'room_id' with 'stop_live_room_list'"}), 400
+            
+            # 确保room_ids不为空
+            if not room_ids:
+                return jsonify({"error": "No room IDs provided"}), 400
+            
+            # 移除可能的非整数ID
+            room_ids = [room_id for room_id in room_ids if str(room_id).isdigit()]
+            
+            # 再次检查是否有有效的房间ID
+            if not room_ids:
+                return jsonify({"error": "No valid room IDs found"}), 400
+            
+            # Format the room_ids as a string for the spider command
+            room_ids_str = json.dumps(room_ids)
+            
+            # Create a thread to run the spider
+            spider_thread = threading.Thread(
+                target=self._run_spider_command,
+                args=(room_ids_str,),
+                daemon=True
+            )
+            spider_thread.start()
+            
+            return jsonify({
+                "status": "success", 
+                "message": f"Spider started for {len(room_ids)} room(s)",
+                "room_ids": room_ids
+            }), 200
+            
+        except Exception as e:
+            traceback.print_exc()
+            return jsonify({"error": "Server error", "details": str(e)}), 500
+    
+    def _run_spider_command(self, room_ids_str):
+        """
+        Run the Bilibili live room spider with the provided room IDs.
+        This method runs in a separate thread.
+        
+        Args:
+            room_ids_str: A JSON string of room IDs
+        """
+        try:
+            spider_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "missions", "tofu-bili-spider")
+            command = f"cd {spider_dir} && scrapy crawl bilibili_live -a room_ids='{room_ids_str}'"
+            
+            print(f"[DEBUG] Running spider command: {command}")
+            process = subprocess.Popen(
+                command,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            # Wait for the process to complete (optional)
+            stdout, stderr = process.communicate()
+            
+            if process.returncode != 0:
+                print(f"[ERROR] Spider process failed with code {process.returncode}")
+                print(f"[ERROR] STDOUT: {stdout}")
+                print(f"[ERROR] STDERR: {stderr}")
+            else:
+                print(f"[INFO] Spider process completed successfully")
+                
+        except Exception as e:
+            print(f"[ERROR] Failed to run spider: {str(e)}")
+            traceback.print_exc()
+
+    def run(self, host='0.0.0.0', port=8085, debug=True):
         self.app.run(host=host, port=port, debug=debug)
 
 
