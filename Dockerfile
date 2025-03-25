@@ -9,7 +9,9 @@ COPY . /app
 
 # 安装 Python 依赖
 RUN pip install --upgrade pip
+RUN pip install scrapy sqlalchemy psycopg2-binary python-dotenv alembic requests
 RUN if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
 
 # 设置环境变量（可选）
 ENV PYTHONUNBUFFERED=1
