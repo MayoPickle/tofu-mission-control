@@ -6,18 +6,35 @@ import os
 import threading
 import subprocess
 import json
+import psycopg2
+from pathlib import Path
+from dotenv import load_dotenv
 
 from modules.config_loader import ConfigLoader
 from modules.room_config_manager import RoomConfigManager
 from modules.battery_tracker import BatteryTracker
 from modules.gift_sender import GiftSender
 from modules.danmaku_sender import DanmakuSender
+from modules.db_handler import DBHandler
+from modules.gift_api import gift_api_bp
+from modules.logger import get_logger, debug, info, warning, error, critical
+from tools.init_db import init_database
 
 
 class DanmakuGiftApp:
-    def __init__(self, config_path="config.json", room_config_path="room_id_config.json"):
+    def __init__(self, config_path="config.json", room_config_path="room_id_config.json", table_name="gift_records", log_file=None, log_level=None):
         # 初始化 Flask
         self.app = Flask(__name__)
+
+        # 加载环境变量
+        env_path = "missions/.env"
+        load_dotenv(env_path)
+        
+        # 设置环境变量供API模块使用
+        os.environ['GIFT_ENV_PATH'] = env_path
+        
+        # 设置Flask配置
+        self.app.config['GIFT_TABLE_NAME'] = table_name
 
         # ---------- 初始化配置 ----------
         self.config_loader = ConfigLoader(config_path)
@@ -37,15 +54,89 @@ class DanmakuGiftApp:
 
         # ---------- 初始化礼物发送器 ----------
         self.gift_sender = GiftSender("./missions/send_gift")
+        
+        # ---------- 初始化礼物记录数据库 ----------
+        self.table_name = table_name
+        # 确保表存在但不强制重建
+        init_database(env_path, table_name, drop_existing=False)
+        
+        # ---------- 初始化数据库处理器 ----------
+        self.db_handler = DBHandler(env_path, table_name)
+        
+        # ---------- 注册蓝图 ----------
+        self.app.register_blueprint(gift_api_bp)
 
         # 注册路由
         self.register_routes()
+        
+        info(f"Gift API endpoints registered successfully (table: {table_name})")
+
+    def _get_db_connection(self):
+        """获取数据库连接"""
+        return psycopg2.connect(
+            host=os.getenv("DB_HOST"),
+            port=os.getenv("DB_PORT"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASS"),
+            database=os.getenv("DB_NAME")
+        )
 
     def register_routes(self):
         self.app.add_url_rule('/ticket', view_func=self.process_ticket, methods=['POST'])
         self.app.add_url_rule('/pk_wanzun', view_func=self.handle_pk_wanzun, methods=['POST'])
         self.app.add_url_rule('/live_room_spider', view_func=self.start_live_room_spider, methods=['POST'])
+        self.app.add_url_rule('/money', view_func=self.handle_money, methods=['POST'])
 
+    def handle_money(self):
+        """
+        处理来自直播间的礼物记录，并按时间顺序存储
+        期望的请求格式：
+        {
+            "room_id": "房间ID",
+            "uid": 用户ID,
+            "uname": "用户名",
+            "gift_id": 礼物ID,
+            "gift_name": "礼物名称",
+            "price": 礼物价格
+        }
+        """
+        try:
+            debug(f"Received money request: {request.json}")
+            data = request.json
+            
+            # 验证必要字段
+            required_fields = ["room_id", "uid", "uname", "gift_id", "gift_name", "price"]
+            for field in required_fields:
+                if field not in data:
+                    return jsonify({"error": f"Missing required field: {field}"}), 400
+            
+            # 使用 DBHandler 保存记录
+            record_id = self.db_handler.add_gift_record(
+                room_id=data["room_id"],
+                uid=data["uid"],
+                uname=data["uname"],
+                gift_id=data["gift_id"],
+                gift_name=data["gift_name"],
+                price=data["price"]
+            )
+            
+            info(f"Gift record saved with ID: {record_id}, from user: {data['uname']}, gift: {data['gift_name']}")
+            
+            return jsonify({
+                "status": "success", 
+                "message": "Gift record saved successfully",
+                "record_id": record_id
+            }), 200
+            
+        except psycopg2.Error as e:
+            error(f"Database error: {e}")
+            traceback.print_exc()
+            return jsonify({"error": "Database error", "details": str(e)}), 500
+        except Exception as e:
+            error(f"Server error: {e}")
+            traceback.print_exc()
+            return jsonify({"error": "Server error", "details": str(e)}), 500
+    
     @staticmethod
     def generate_target_number(power: int):
         """
@@ -58,7 +149,7 @@ class DanmakuGiftApp:
 
     def process_ticket(self):
         gift_id = "33988"  # 固定礼物ID
-        print(f"[DEBUG] Received ticket request: {request.json}")
+        debug(f"Received ticket request: {request.json}")
         try:
             data = request.json
             if not data or 'room_id' not in data or 'danmaku' not in data:
@@ -93,12 +184,12 @@ class DanmakuGiftApp:
 
             # ---------- 计算密码并校验 ----------
             target_number = self.generate_target_number(power)
-            print(f"[DEBUG] 计算得到的密码: {target_number}")
+            debug(f"计算得到的密码: {target_number}")
 
             if not re.search(target_number, danmaku):
                 msg = f"danmaku 不包含 {target_number}, 无法触发脚本"
                 notifee.send_danmaku(room_id, "喵喵喵！喵！")
-                print(f"[DEBUG] {msg}")
+                debug(msg)
                 return jsonify({"status": "failed", "reason": msg}), 400
 
             # ---------- 检查并更新电池用量 ----------
@@ -119,37 +210,37 @@ class DanmakuGiftApp:
 
                     if total_need <= 0:
                         msg = f"房间 {room_id} 小时电池已用完 (已用:{room_hourly_used}, 上限:{max_hourly})"
-                        print(f"[DEBUG] {msg}")
+                        debug(msg)
                         notifee.send_danmaku(room_id, f"喵喵，小时电池已用完喵")
                         return jsonify({"status": "failed", "reason": msg}), 400
 
                     if room_daily_used + total_need > max_daily:
                         msg = f"房间 {room_id} 日电池超上限 (已用:{room_daily_used}, 计划:{total_need}, 上限:{max_daily})"
-                        print(f"[DEBUG] {msg}")
+                        debug(msg)
                         notifee.send_danmaku(room_id, f"喵喵，天{room_daily_used + total_need}喵{max_daily}")
                         return jsonify({"status": "failed", "reason": msg}), 400
 
                     self.battery_tracker.hourly_battery_count[room_id] = room_hourly_used + total_need
                     self.battery_tracker.daily_battery_count_by_room[room_id] = room_daily_used + total_need
 
-                    print(f"[DEBUG] [全境] 房间 {room_id} 更新用量：小时 {room_hourly_used+total_need}/{max_hourly}, 日 {room_daily_used+total_need}/{max_daily}, 每个账号分配 {num_each} 个")
+                    debug(f"[全境] 房间 {room_id} 更新用量：小时 {room_hourly_used+total_need}/{max_hourly}, 日 {room_daily_used+total_need}/{max_daily}, 每个账号分配 {num_each} 个")
                 else:
                     if room_hourly_used + num > max_hourly:
                         msg = f"房间 {room_id} 小时电池超上限 (已用:{room_hourly_used}, 计划:{num}, 上限:{max_hourly})"
-                        print(f"[DEBUG] {msg}")
+                        debug(msg)
                         notifee.send_danmaku(room_id, f"喵喵，小时{room_hourly_used}喵{max_hourly}")
                         return jsonify({"status": "failed", "reason": msg}), 400
 
                     if room_daily_used + num > max_daily:
                         msg = f"房间 {room_id} 日电池超上限 (已用:{room_daily_used}, 计划:{num}, 上限:{max_daily})"
-                        print(f"[DEBUG] {msg}")
+                        debug(msg)
                         notifee.send_danmaku(room_id, f"喵喵，天{room_daily_used}喵{max_daily}")
                         return jsonify({"status": "failed", "reason": msg}), 400
 
                     self.battery_tracker.hourly_battery_count[room_id] = room_hourly_used + num
                     self.battery_tracker.daily_battery_count_by_room[room_id] = room_daily_used + num
 
-                    print(f"[DEBUG] 房间 {room_id} 更新用量：小时 {room_hourly_used+num}/{max_hourly}, 日 {room_daily_used+num}/{max_daily}")
+                    debug(f"房间 {room_id} 更新用量：小时 {room_hourly_used+num}/{max_hourly}, 日 {room_daily_used+num}/{max_daily}")
             
             # ---------- 发送礼物 ----------
             if is_special_all:
@@ -163,6 +254,7 @@ class DanmakuGiftApp:
                 return jsonify({"status": "success", "message": "Gift sent successfully"}), 200
 
         except Exception as e:
+            error(f"处理ticket请求失败: {e}")
             traceback.print_exc()
             return jsonify({"error": "Server error", "details": str(e)}), 500
 
@@ -173,7 +265,7 @@ class DanmakuGiftApp:
         room_id = data.get("room_id")
         pk_data = data.get("pk_battle_process_new")
         token = data.get("token")
-        print(f"[DEBUG] PK_BATTLE_PROCESS_NEW: {room_id}, {pk_data}, {token}")
+        debug(f"PK_BATTLE_PROCESS_NEW: {room_id}, {pk_data}, {token}")
 
         if not room_id or token != "8096":
             return jsonify({"status": "error", "message": "Invalid data"}), 400
@@ -193,29 +285,32 @@ class DanmakuGiftApp:
 
             if room_hourly_used + num > max_hourly:
                 msg = f"房间 {room_id} 小时电池超上限 (已用:{room_hourly_used}, 计划:{num}, 上限:{max_hourly})"
-                print(f"[DEBUG] {msg}")
+                debug(msg)
                 notifee.send_danmaku(room_id, f"喵喵，小时{room_hourly_used}喵{max_hourly}")
                 return jsonify({"status": "failed", "reason": msg}), 400
 
             if room_daily_used + num > max_daily:
                 msg = f"房间 {room_id} 日电池超上限 (已用:{room_daily_used}, 计划:{num}, 上限:{max_daily})"
-                print(f"[DEBUG] {msg}")
+                debug(msg)
                 notifee.send_danmaku(room_id, f"喵喵，天{room_daily_used}喵{max_daily}")
                 return jsonify({"status": "failed", "reason": msg}), 400
 
             self.battery_tracker.hourly_battery_count[room_id] = room_hourly_used + num
             self.battery_tracker.daily_battery_count_by_room[room_id] = room_daily_used + num
 
-            print(f"[DEBUG] 房间 {room_id} 更新用量：小时 {room_hourly_used+num}/{max_hourly}, 日 {room_daily_used+num}/{max_daily}")
+            debug(f"房间 {room_id} 更新用量：小时 {room_hourly_used+num}/{max_hourly}, 日 {room_daily_used+num}/{max_daily}")
 
         try:
             self.gift_sender.send_gift(room_id, num, account, gift_id)
             return jsonify({"status": "success", "message": "Gift sent successfully"}), 200
         except TimeoutError:
+            error("Failed to send gift (timeout)")
             return jsonify({"error": "Failed to send gift (timeout)"}), 500
         except RuntimeError as e:
+            error(f"Failed to send gift: {str(e)}")
             return jsonify({"error": f"Failed to send gift: {str(e)}"}), 500
         except Exception as e:
+            error(f"Unknown error in subprocess: {e}")
             traceback.print_exc()
             return jsonify({"error": "Unknown error in subprocess", "details": str(e)}), 500
 
@@ -227,7 +322,7 @@ class DanmakuGiftApp:
         2. {"room_id": 房间ID, "stop_live_room_list": 包含房间ID的数据}
         """
         try:
-            print(f"[DEBUG] Received live_room_spider request: {request.json}")
+            debug(f"Received live_room_spider request: {request.json}")
             data = request.json
             
             # 处理第一种格式：直接提供room_ids列表
@@ -237,7 +332,7 @@ class DanmakuGiftApp:
             elif data and 'room_id' in data and 'stop_live_room_list' in data:
                 # 从stop_live_room_list中提取房间ID
                 stop_live_rooms = data.get('stop_live_room_list', {})
-                print(f"[DEBUG] Extracted stop_live_room_list: {stop_live_rooms}")
+                debug(f"Extracted stop_live_room_list: {stop_live_rooms}")
                 
                 # 如果stop_live_room_list是字典，我们尝试从中提取房间ID列表
                 if isinstance(stop_live_rooms, dict):
@@ -248,7 +343,7 @@ class DanmakuGiftApp:
                     # 特别检查room_id_list字段（根据日志输出发现的关键字段）
                     if 'room_id_list' in stop_live_rooms and isinstance(stop_live_rooms['room_id_list'], list):
                         room_ids = stop_live_rooms['room_id_list']
-                        print(f"[DEBUG] Found room_ids in 'room_id_list' field: {room_ids}")
+                        debug(f"Found room_ids in 'room_id_list' field: {room_ids}")
                     # 尝试其他可能的数据结构
                     elif 'room_ids' in stop_live_rooms and isinstance(stop_live_rooms['room_ids'], list):
                         room_ids = stop_live_rooms['room_ids']
@@ -261,7 +356,7 @@ class DanmakuGiftApp:
                         if all(str(k).isdigit() for k in try_keys):
                             room_ids = try_keys
                         
-                    print(f"[DEBUG] Extracted room_ids from stop_live_room_list: {room_ids[:5]}{'...' if len(room_ids) > 5 else ''} (total: {len(room_ids)})")
+                    debug(f"Extracted room_ids from stop_live_room_list: {room_ids[:5]}{'...' if len(room_ids) > 5 else ''} (total: {len(room_ids)})")
                 
                 # 如果stop_live_room_list已经是列表，直接使用
                 elif isinstance(stop_live_rooms, list):
@@ -270,7 +365,7 @@ class DanmakuGiftApp:
                     # 如果无法从数据中提取房间ID，使用请求中的room_id
                     room_ids = [data['room_id']]
             else:
-                print(f"[DEBUG] Invalid request format: {data}")
+                debug(f"Invalid request format: {data}")
                 return jsonify({"error": "Invalid request format, expected 'room_ids' list or 'room_id' with 'stop_live_room_list'"}), 400
             
             # 确保room_ids不为空
@@ -302,6 +397,7 @@ class DanmakuGiftApp:
             }), 200
             
         except Exception as e:
+            error(f"启动爬虫失败: {e}")
             traceback.print_exc()
             return jsonify({"error": "Server error", "details": str(e)}), 500
     
@@ -317,7 +413,7 @@ class DanmakuGiftApp:
             spider_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "missions", "tofu-bili-spider")
             command = f"cd {spider_dir} && scrapy crawl bilibili_live -a room_ids='{room_ids_str}'"
             
-            print(f"[DEBUG] Running spider command: {command}")
+            debug(f"Running spider command: {command}")
             process = subprocess.Popen(
                 command,
                 shell=True,
@@ -330,17 +426,17 @@ class DanmakuGiftApp:
             stdout, stderr = process.communicate()
             
             if process.returncode != 0:
-                print(f"[ERROR] Spider process failed with code {process.returncode}")
-                print(f"[ERROR] STDOUT: {stdout}")
-                print(f"[ERROR] STDERR: {stderr}")
+                error(f"Spider process failed with code {process.returncode}")
+                error(f"STDOUT: {stdout}")
+                error(f"STDERR: {stderr}")
             else:
-                print(f"[INFO] Spider process completed successfully")
+                info("Spider process completed successfully")
                 
         except Exception as e:
-            print(f"[ERROR] Failed to run spider: {str(e)}")
+            error(f"Failed to run spider: {str(e)}")
             traceback.print_exc()
 
-    def run(self, host='0.0.0.0', port=8081, debug=True):
+    def run(self, host='0.0.0.0', port=8082, debug=True):
         self.app.run(host=host, port=port, debug=debug)
 
 
