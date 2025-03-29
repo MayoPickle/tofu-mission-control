@@ -86,6 +86,7 @@ class DanmakuGiftApp:
         self.app.add_url_rule('/pk_wanzun', view_func=self.handle_pk_wanzun, methods=['POST'])
         self.app.add_url_rule('/live_room_spider', view_func=self.start_live_room_spider, methods=['POST'])
         self.app.add_url_rule('/money', view_func=self.handle_money, methods=['POST'])
+        self.app.add_url_rule('/setting', view_func=self.handle_setting, methods=['POST'])
 
     def handle_money(self):
         """
@@ -273,6 +274,11 @@ class DanmakuGiftApp:
         room_id = str(data['room_id'])
         notifee = DanmakuSender()
         account = "ghost"
+        
+        # 检查房间是否开启了加强模式
+        youxiao = self.room_config_manager.get_room_youxiao(room_id)
+        # 根据房间状态决定礼物数量
+        num = 10 if youxiao else 1
 
         with self.battery_tracker.lock:
             self.battery_tracker.reset_hourly_battery_unlocked()
@@ -281,7 +287,6 @@ class DanmakuGiftApp:
             max_hourly, max_daily = self.room_config_manager.get_room_limits(room_id)
             room_hourly_used = self.battery_tracker.hourly_battery_count.get(room_id, 0)
             room_daily_used = self.battery_tracker.daily_battery_count_by_room.get(room_id, 0)
-            num = 1
 
             if room_hourly_used + num > max_hourly:
                 msg = f"房间 {room_id} 小时电池超上限 (已用:{room_hourly_used}, 计划:{num}, 上限:{max_hourly})"
@@ -298,7 +303,7 @@ class DanmakuGiftApp:
             self.battery_tracker.hourly_battery_count[room_id] = room_hourly_used + num
             self.battery_tracker.daily_battery_count_by_room[room_id] = room_daily_used + num
 
-            debug(f"房间 {room_id} 更新用量：小时 {room_hourly_used+num}/{max_hourly}, 日 {room_daily_used+num}/{max_daily}")
+            debug(f"房间 {room_id} 更新用量：小时 {room_hourly_used+num}/{max_hourly}, 日 {room_daily_used+num}/{max_daily}, 加强模式: {youxiao}")
 
         try:
             self.gift_sender.send_gift(room_id, num, account, gift_id)
@@ -435,6 +440,56 @@ class DanmakuGiftApp:
         except Exception as e:
             error(f"Failed to run spider: {str(e)}")
             traceback.print_exc()
+
+    def handle_setting(self):
+        """
+        处理 /setting 接口，用于接收记仇机器人指令
+        接受格式：{"room_id": "房间ID", "danmaku": "弹幕内容"}
+        """
+        try:
+            debug(f"Received setting request: {request.json}")
+            data = request.json
+            
+            # 验证必要字段
+            if not data or 'room_id' not in data or 'danmaku' not in data:
+                return jsonify({"error": "Invalid request, missing 'room_id' or 'danmaku'"}), 400
+                
+            room_id = str(data['room_id'])
+            danmaku = data['danmaku']
+            notifee = DanmakuSender()
+            
+            # 检查是否包含有效的记仇机器人指令
+            if "记仇机器人有效299792" in danmaku:
+                # 设置房间状态为启用
+                self.room_config_manager.set_room_youxiao(room_id, True)
+                info(f"房间 {room_id} 已启用加强模式")
+                notifee.send_danmaku(room_id, "喵喵，加强模式已开启喵~")
+                return jsonify({
+                    "status": "success", 
+                    "message": "Room enabled successfully",
+                    "youxiao": True
+                }), 200
+                
+            elif "记仇机器人挽尊299792" in danmaku:
+                # 设置房间状态为禁用
+                self.room_config_manager.set_room_youxiao(room_id, False)
+                info(f"房间 {room_id} 已禁用加强模式")
+                notifee.send_danmaku(room_id, "喵喵，加强模式已关闭喵~")
+                return jsonify({
+                    "status": "success", 
+                    "message": "Room disabled successfully",
+                    "youxiao": False
+                }), 200
+                
+            else:
+                # 不是有效的指令
+                debug(f"非有效记仇机器人指令: {danmaku}")
+                return jsonify({"status": "ignored", "message": "Not a valid setting command"}), 200
+                
+        except Exception as e:
+            error(f"Setting error: {e}")
+            traceback.print_exc()
+            return jsonify({"error": "Server error", "details": str(e)}), 500
 
     def run(self, host='0.0.0.0', port=8082, debug=True):
         self.app.run(host=host, port=port, debug=debug)
