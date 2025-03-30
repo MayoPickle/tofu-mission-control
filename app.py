@@ -142,8 +142,9 @@ class DanmakuGiftApp:
     def generate_target_number(power: int):
         """
         计算 (月 + 日 + 时)^power 的结果，并取最后 4 位
+        使用UTC时间计算
         """
-        now = datetime.datetime.now()
+        now = datetime.datetime.utcnow()
         sum_value = now.month + now.day + now.hour
         computed_value = sum_value ** power
         return str(computed_value % 10000)
