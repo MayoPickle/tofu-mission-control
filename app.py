@@ -19,6 +19,7 @@ from modules.db_handler import DBHandler
 from modules.gift_api import gift_api_bp
 from modules.logger import get_logger, debug, info, warning, error, critical
 from tools.init_db import init_database
+from modules.chatbot import ChatbotHandler
 
 
 class DanmakuGiftApp:
@@ -66,6 +67,9 @@ class DanmakuGiftApp:
         # ---------- 注册蓝图 ----------
         self.app.register_blueprint(gift_api_bp)
 
+        # 初始化chatbot处理器
+        self.chatbot_handler = ChatbotHandler(env_path="missions/tofu-bili-spider/.env")
+
         # 注册路由
         self.register_routes()
         
@@ -87,6 +91,7 @@ class DanmakuGiftApp:
         self.app.add_url_rule('/live_room_spider', view_func=self.start_live_room_spider, methods=['POST'])
         self.app.add_url_rule('/money', view_func=self.handle_money, methods=['POST'])
         self.app.add_url_rule('/setting', view_func=self.handle_setting, methods=['POST'])
+        self.app.add_url_rule('/chatbot', view_func=self.handle_chatbot, methods=['POST'])
 
     def handle_money(self):
         """
@@ -491,6 +496,53 @@ class DanmakuGiftApp:
             error(f"Setting error: {e}")
             traceback.print_exc()
             return jsonify({"error": "Server error", "details": str(e)}), 500
+
+    def handle_chatbot(self):
+        """
+        处理 /chatbot 接口，使用ChatGPT生成弹幕回复
+        接受格式：{"room_id": "房间ID", "message": "用户消息"}
+        """
+        try:
+            debug(f"收到chatbot请求: {request.json}")
+            data = request.json
+            
+            # 验证必要字段
+            if not data or 'room_id' not in data or 'message' not in data:
+                return jsonify({"error": "无效请求，缺少 'room_id' 或 'message'"}), 400
+                
+            room_id = str(data['room_id'])
+            message = data['message']
+            notifee = DanmakuSender()
+            
+            try:
+                # 使用ChatGPT生成回复
+                response = self.chatbot_handler.generate_response(message)
+                debug(f"ChatGPT生成回复: {response}")
+                
+                # 发送弹幕
+                notifee.send_danmaku(room_id, response)
+                
+                return jsonify({
+                    "status": "success", 
+                    "message": "弹幕已发送",
+                    "response": response
+                }), 200
+                
+            except Exception as e:
+                error(f"生成或发送回复失败: {str(e)}")
+                # 发送一个默认回复
+                notifee.send_danmaku(room_id, "喵喵喵～")
+                
+                return jsonify({
+                    "status": "partial_success",
+                    "message": f"生成回复失败，已发送默认回复: {str(e)}",
+                    "response": "喵喵喵～"
+                }), 200
+                
+        except Exception as e:
+            error(f"处理chatbot请求失败: {e}")
+            traceback.print_exc()
+            return jsonify({"error": "服务器错误", "details": str(e)}), 500
 
     def run(self, host='0.0.0.0', port=8082, debug=True):
         self.app.run(host=host, port=port, debug=debug)

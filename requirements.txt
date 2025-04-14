@@ -2,3 +2,5 @@ flask
 gunicorn
 requests
 colorama
+openai>=1.12.0
+python-dotenv

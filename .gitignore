@@ -60,5 +60,9 @@ Thumbs.db
 # tox
 .tox/
 
+# 项目特定文件
 room_id_config.json
 account_cookies.json
+.env
+missions/.env
+missions/tofu-bili-spider/.env
