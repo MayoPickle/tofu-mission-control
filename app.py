@@ -544,7 +544,7 @@ class DanmakuGiftApp:
             traceback.print_exc()
             return jsonify({"error": "服务器错误", "details": str(e)}), 500
 
-    def run(self, host='0.0.0.0', port=8082, debug=True):
+    def run(self, host='0.0.0.0', port=8081, debug=True):
         self.app.run(host=host, port=port, debug=debug)
 
 
