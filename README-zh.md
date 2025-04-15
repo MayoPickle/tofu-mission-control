@@ -1,5 +1,7 @@
 # Tofu Mission Control
 
+[English](README.md) | [中文](README-zh.md)
+
 基于Flask的直播互动管理服务，包含礼物处理、弹幕处理和基于AI聊天机器人的自动回复功能。
 
 ## 功能特点

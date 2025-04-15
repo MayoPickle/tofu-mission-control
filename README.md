@@ -1,5 +1,7 @@
 # Tofu Mission Control
 
+[English](README.md) | [中文](README-zh.md)
+
 A Flask-based service for managing live streaming interactions, including gift handling, danmaku (chat) processing, and automated responses with AI chatbot integration.
 
 ## Features
