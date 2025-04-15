@@ -9,6 +9,7 @@ import json
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
+import time
 
 from modules.config_loader import ConfigLoader
 from modules.room_config_manager import RoomConfigManager
@@ -517,7 +518,19 @@ class DanmakuGiftApp:
             try:
                 # 使用ChatGPT生成回复
                 response = self.chatbot_handler.generate_response(message)
-                debug(f"ChatGPT生成回复: {response}")
+                
+                # 检查是否是冷却回复
+                if response == "喵喵喵喵喵！！！":
+                    # 判断是处于冷却中还是刚触发冷却
+                    if time.time() < self.chatbot_handler.cooldown_until:
+                        # 冷却中
+                        remaining_time = int(self.chatbot_handler.cooldown_until - time.time())
+                        info(f"房间 {room_id} API调用被限制：冷却中，剩余 {remaining_time} 秒")
+                    else:
+                        # 刚触发冷却
+                        info(f"房间 {room_id} 触发API调用冷却: 3秒内超过1次请求，冷却30秒")
+                else:
+                    debug(f"ChatGPT生成回复: {response}")
                 
                 # 发送弹幕
                 notifee.send_danmaku(room_id, response)
@@ -525,7 +538,8 @@ class DanmakuGiftApp:
                 return jsonify({
                     "status": "success", 
                     "message": "弹幕已发送",
-                    "response": response
+                    "response": response,
+                    "rate_limited": response == "喵喵喵喵喵！！！"
                 }), 200
                 
             except Exception as e:
