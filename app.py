@@ -69,7 +69,7 @@ class DanmakuGiftApp:
         self.app.register_blueprint(gift_api_bp)
 
         # 初始化chatbot处理器
-        self.chatbot_handler = ChatbotHandler(env_path="missions/tofu-bili-spider/.env")
+        self.chatbot_handler = ChatbotHandler(env_path="missions/.env")
 
         # 注册路由
         self.register_routes()
