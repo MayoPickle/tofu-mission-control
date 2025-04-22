@@ -16,6 +16,7 @@ from modules.room_config_manager import RoomConfigManager
 from modules.battery_tracker import BatteryTracker
 from modules.gift_sender import GiftSender
 from modules.danmaku_sender import DanmakuSender
+from modules.like_sender import LikeSender
 from modules.db_handler import DBHandler
 from modules.gift_api import gift_api_bp
 from modules.logger import get_logger, debug, info, warning, error, critical
@@ -93,6 +94,7 @@ class DanmakuGiftApp:
         self.app.add_url_rule('/money', view_func=self.handle_money, methods=['POST'])
         self.app.add_url_rule('/setting', view_func=self.handle_setting, methods=['POST'])
         self.app.add_url_rule('/chatbot', view_func=self.handle_chatbot, methods=['POST'])
+        self.app.add_url_rule('/sendlike', view_func=self.handle_sendlike, methods=['POST'])
 
     def handle_money(self):
         """
@@ -558,6 +560,96 @@ class DanmakuGiftApp:
             error(f"处理chatbot请求失败: {e}")
             traceback.print_exc()
             return jsonify({"error": "服务器错误", "details": str(e)}), 500
+
+    def handle_sendlike(self):
+        """
+        处理 /sendlike 接口，对指定房间发送点赞
+        接受格式：{"room_id": "房间ID", "message": "消息内容"}
+        立即返回200状态码，不等待点赞操作完成
+        """
+        try:
+            debug(f"收到sendlike请求: {request.json}")
+            data = request.json
+            
+            # 验证必要字段
+            if not data or 'room_id' not in data:
+                return jsonify({"error": "无效请求，缺少 'room_id'"}), 400
+                
+            room_id = str(data['room_id'])
+            message = data.get('message', '点赞请求')  # 消息内容，用于日志记录
+            like_times = data.get('like_times', 5)  # 可选参数，点赞次数，默认5次
+            accounts = data.get('accounts', 'all')  # 可选参数，指定账号，默认全部账号
+            
+            # 创建一个线程来执行点赞和发送弹幕的操作
+            like_thread = threading.Thread(
+                target=self._execute_like_task,
+                args=(room_id, message, like_times, accounts),
+                daemon=True
+            )
+            
+            # 启动线程
+            like_thread.start()
+            
+            # 立即返回成功响应，不等待点赞操作完成
+            return jsonify({
+                "status": "success", 
+                "message": "点赞请求已接收，正在处理中",
+                "room_id": room_id,
+                "like_times": like_times,
+                "accounts": accounts
+            }), 200
+                
+        except Exception as e:
+            error(f"处理sendlike请求失败: {e}")
+            traceback.print_exc()
+            return jsonify({"error": "服务器错误", "details": str(e)}), 500
+            
+    def _execute_like_task(self, room_id, message, like_times, accounts):
+        """
+        在后台线程中执行点赞任务
+        """
+        notifee = DanmakuSender()
+        like_sender = LikeSender()
+        
+        # 发送确认弹幕
+        try:
+            notifee.send_danmaku(room_id, "喵喵，收到点赞请求喵～")
+        except Exception as e:
+            # 如果发送弹幕失败，只记录日志但不影响后续点赞操作
+            error(f"发送确认弹幕失败: {str(e)}")
+        
+        # 发送点赞
+        try:
+            like_sender.send_like(room_id, message, like_times, accounts)
+            info(f"成功向房间 {room_id} 发送点赞，消息: {message}, 点赞次数: {like_times}, 账号: {accounts}")
+            
+            # 发送完成弹幕
+            try:
+                notifee.send_danmaku(room_id, "咪，完成，蹭蹭观测站的大伙们～")
+            except Exception as e:
+                error(f"发送完成弹幕失败: {str(e)}")
+            
+        except TimeoutError:
+            error(f"发送点赞超时 (room_id: {room_id})")
+            try:
+                notifee.send_danmaku(room_id, "喵喵，点赞超时了喵...")
+            except:
+                pass
+            
+        except RuntimeError as e:
+            error(f"发送点赞失败: {str(e)}")
+            try:
+                notifee.send_danmaku(room_id, "喵喵，点赞失败了喵...")
+            except:
+                pass
+        
+        except Exception as e:
+            error(f"点赞任务执行异常: {str(e)}")
+            traceback.print_exc()
+            try:
+                notifee.send_danmaku(room_id, "喵喵，点赞发生错误喵...")
+            except:
+                pass
 
     def run(self, host='0.0.0.0', port=8081, debug=True):
         self.app.run(host=host, port=port, debug=debug)
