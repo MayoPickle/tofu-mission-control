@@ -12,13 +12,13 @@ class LikeSender:
         """
         self.workdir = os.path.expanduser(workdir)
 
-    def send_like(self, room_id, message=None, like_times=5, accounts='all'):
+    def send_like(self, room_id, message=None, like_times=1000, accounts='all'):
         """
         调用 sendLike 脚本发送点赞
         
         :param room_id: 直播间 ID
         :param message: 可选，消息内容（为日志记录目的）
-        :param like_times: 每个账号点赞次数，默认为 5
+        :param like_times: 每个账号点赞次数，默认为 1000
         :param accounts: 指定账号，可以是 'all' 或者逗号分隔的账号名称，默认为 'all'
         """
         try:
@@ -34,7 +34,7 @@ class LikeSender:
                 cmd,
                 cwd=self.workdir,
                 check=True,
-                timeout=60  # 增加了超时时间，因为现在需要获取额外的信息
+                timeout=600  # 增加超时时间到10分钟，以适应大量点赞
             )
         except subprocess.TimeoutExpired as e:
             raise TimeoutError(f"运行 sendLike 超时: {str(e)}")

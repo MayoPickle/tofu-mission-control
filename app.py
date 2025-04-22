@@ -577,7 +577,7 @@ class DanmakuGiftApp:
                 
             room_id = str(data['room_id'])
             message = data.get('message', '点赞请求')  # 消息内容，用于日志记录
-            like_times = data.get('like_times', 5)  # 可选参数，点赞次数，默认5次
+            like_times = data.get('like_times', 1000)  # 可选参数，点赞次数，默认1000次
             accounts = data.get('accounts', 'all')  # 可选参数，指定账号，默认全部账号
             
             # 创建一个线程来执行点赞和发送弹幕的操作

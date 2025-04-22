@@ -48,7 +48,7 @@ def main():
     parser.add_argument('--room-id', required=True, help='房间 ID')
     parser.add_argument('--cookie-path', default='../../account_cookies.json',
                         help='account_cookies.json 文件路径(默认为 ../../account_cookies.json)')
-    parser.add_argument('--like-times', type=int, default=5, help='点赞次数(默认为5)')
+    parser.add_argument('--like-times', type=int, default=1000, help='点赞次数(默认为1000)')
     parser.add_argument('--accounts', type=str, default='all', help='使用的账号，多个账号用逗号分隔，或使用"all"表示所有账号')
     args = parser.parse_args()
 
@@ -140,14 +140,23 @@ def main():
             'click_time': '1'
         }
         
+        batch_size = 100  # 每100次点赞显示一次进度
+        
+        print(f"[INFO] 账号 {account} 开始点赞，计划点赞 {args.like_times} 次")
+        
         for i in range(args.like_times):
             try:
+                # 只在每批次开始或结束时显示进度
+                if i % batch_size == 0 or i == args.like_times - 1:
+                    print(f"[INFO] 账号 {account} 正在点赞: {i+1}/{args.like_times}")
+                
                 # 先尝试 V3 接口
                 response = requests.post(url_v3, headers=headers, cookies=cookies, data=data_v3)
                 
                 # 如果 V3 接口失败，尝试 V1 接口
                 if response.status_code != 200 or response.json().get('code', -1) != 0:
-                    print(f"[WARNING] 账号 {account} 使用 V3 接口点赞失败，尝试 V1 接口")
+                    if i % batch_size == 0:  # 只在每批次开始时记录警告
+                        print(f"[WARNING] 账号 {account} 使用 V3 接口点赞失败，尝试 V1 接口")
                     response = requests.post(url_v1, headers=headers, cookies=cookies, data=data_v1)
                 
                 # 检查结果
@@ -155,19 +164,27 @@ def main():
                     resp_json = response.json()
                     if resp_json.get('code') == 0:
                         like_success += 1
-                        print(f"[INFO] 账号 {account} 第 {i+1} 次点赞成功")
+                        # 只在特定位置显示成功信息，避免大量日志输出
+                        if i % batch_size == 0 or i == args.like_times - 1:
+                            print(f"[INFO] 账号 {account} 第 {i+1} 次点赞成功")
                     else:
-                        print(f"[ERROR] 账号 {account} 第 {i+1} 次点赞失败: {resp_json.get('message')}")
+                        # 只在特定位置显示错误信息
+                        if i % batch_size == 0:
+                            print(f"[ERROR] 账号 {account} 第 {i+1} 次点赞失败: {resp_json.get('message')}")
                 else:
-                    print(f"[ERROR] 账号 {account} 第 {i+1} 次点赞请求失败, HTTP状态码: {response.status_code}")
-                    print("响应内容:", response.text)
+                    # 只在特定位置显示错误信息
+                    if i % batch_size == 0:
+                        print(f"[ERROR] 账号 {account} 第 {i+1} 次点赞请求失败, HTTP状态码: {response.status_code}")
+                        print("响应内容:", response.text)
                 
                 # 短暂延迟，避免频率限制
                 if i < args.like_times - 1:
-                    time.sleep(0.5)
+                    time.sleep(0.1)  # 减少延迟以加快点赞速度
                     
             except Exception as e:
-                print(f"[ERROR] 账号 {account} 第 {i+1} 次点赞发生异常: {str(e)}")
+                # 只在特定位置显示错误信息
+                if i % batch_size == 0:
+                    print(f"[ERROR] 账号 {account} 第 {i+1} 次点赞发生异常: {str(e)}")
         
         if like_success > 0:
             success_count += 1
