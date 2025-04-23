@@ -197,7 +197,10 @@ class DanmakuGiftApp:
             debug(f"计算得到的密码: {target_number}")
 
             if not re.search(target_number, danmaku):
-                msg = f"danmaku 不包含 {target_number}, 无法触发脚本"
+                now = datetime.datetime.utcnow()
+                sum_value = now.month + now.day + now.hour
+                msg = f"密码错误! 弹幕 '{danmaku}' 不包含正确密码 {target_number}，无法触发脚本。UTC时间：{now}，基础值：{sum_value}，幂次：{power}"
+                error(msg)  # 使用error级别确保一定会打印
                 notifee.send_danmaku(room_id, "喵喵喵！喵！")
                 debug(msg)
                 return jsonify({"status": "failed", "reason": msg}), 400
