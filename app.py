@@ -579,11 +579,12 @@ class DanmakuGiftApp:
             message = data.get('message', '点赞请求')  # 消息内容，用于日志记录
             like_times = data.get('like_times', 1000)  # 可选参数，点赞次数，默认1000次
             accounts = data.get('accounts', 'all')  # 可选参数，指定账号，默认全部账号
+            max_workers = data.get('max_workers', 5)  # 可选参数，最大并行线程数，默认5
             
             # 创建一个线程来执行点赞和发送弹幕的操作
             like_thread = threading.Thread(
                 target=self._execute_like_task,
-                args=(room_id, message, like_times, accounts),
+                args=(room_id, message, like_times, accounts, max_workers),
                 daemon=True
             )
             
@@ -596,7 +597,8 @@ class DanmakuGiftApp:
                 "message": "点赞请求已接收，正在处理中",
                 "room_id": room_id,
                 "like_times": like_times,
-                "accounts": accounts
+                "accounts": accounts,
+                "max_workers": max_workers
             }), 200
                 
         except Exception as e:
@@ -604,7 +606,7 @@ class DanmakuGiftApp:
             traceback.print_exc()
             return jsonify({"error": "服务器错误", "details": str(e)}), 500
             
-    def _execute_like_task(self, room_id, message, like_times, accounts):
+    def _execute_like_task(self, room_id, message, like_times, accounts, max_workers=5):
         """
         在后台线程中执行点赞任务
         """
@@ -620,12 +622,12 @@ class DanmakuGiftApp:
         
         # 发送点赞
         try:
-            like_sender.send_like(room_id, message, like_times, accounts)
-            info(f"成功向房间 {room_id} 发送点赞，消息: {message}, 点赞次数: {like_times}, 账号: {accounts}")
+            like_sender.send_like(room_id, message, like_times, accounts, max_workers)
+            info(f"成功向房间 {room_id} 发送点赞，消息: {message}, 点赞次数: {like_times}, 账号: {accounts}, 并行数: {max_workers}")
             
             # 发送完成弹幕
             try:
-                notifee.send_danmaku(room_id, "咪，完成，蹭蹭观测站的大伙们～")
+                notifee.send_danmaku(room_id, "咪，点赞任务已完成，蹭蹭观测站的大伙们喵～！")
             except Exception as e:
                 error(f"发送完成弹幕失败: {str(e)}")
             

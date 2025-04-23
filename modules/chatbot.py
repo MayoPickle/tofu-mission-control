@@ -64,7 +64,7 @@ class ChatbotHandler:
             self.max_requests_per_window = 1
             self.context_enabled = True
             self.max_context_messages = 10
-            self.context_expiry = 600
+            self.context_expiry = 1800
         
         # 存储每个房间的消息历史
         self.message_history = defaultdict(list)
