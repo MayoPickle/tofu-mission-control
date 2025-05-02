@@ -30,6 +30,9 @@ class DanmakuGiftApp:
         # 初始化 Flask
         self.app = Flask(__name__)
 
+        # 设置环境变量
+        os.environ['TZ'] = 'UTC'
+        
         # 加载环境变量
         env_path = "missions/.env"
         load_dotenv(env_path)
@@ -153,7 +156,17 @@ class DanmakuGiftApp:
         计算 (月 + 日 + 时)^power 的结果，并取最后 4 位
         使用UTC时间计算
         """
-        now = datetime.datetime.now(timezone.utc)
+        # 强制使用UTC时间计算
+        try:
+            # 优先使用 timezone.utc
+            now = datetime.datetime.now(timezone.utc)
+        except Exception as e:
+            # 如果以上方法失败，则使用传统方法
+            now = datetime.datetime.utcnow()
+            
+        # 记录时间信息用于调试
+        debug(f"UTC时间: {now}, 月:{now.month}, 日:{now.day}, 时:{now.hour}")
+        
         sum_value = now.month + now.day + now.hour
         computed_value = sum_value ** power
         return str(computed_value % 10000)
@@ -198,9 +211,17 @@ class DanmakuGiftApp:
             debug(f"计算得到的密码: {target_number}")
 
             if not re.search(target_number, danmaku):
-                now = datetime.datetime.now(timezone.utc)
+                try:
+                    # 优先使用 timezone.utc
+                    now = datetime.datetime.now(timezone.utc)
+                except Exception as e:
+                    # 如果以上方法失败，则使用传统方法
+                    now = datetime.datetime.utcnow()
+                    
                 sum_value = now.month + now.day + now.hour
-                msg = f"密码错误! 弹幕 '{danmaku}' 不包含正确密码 {target_number}，无法触发脚本。UTC时间：{now}，基础值：{sum_value}，幂次：{power}"
+                # 获取当前系统时区信息
+                system_tz = time.tzname
+                msg = f"密码错误! 弹幕 '{danmaku}' 不包含正确密码 {target_number}，无法触发脚本。UTC时间：{now}，基础值：{sum_value}，幂次：{power}，系统时区：{system_tz}"
                 error(msg)  # 使用error级别确保一定会打印
                 notifee.send_danmaku(room_id, "喵喵喵！喵！")
                 debug(msg)
