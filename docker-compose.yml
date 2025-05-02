@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  tofu-app:
+    build: .
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./missions/.env:/app/missions/.env
+    depends_on:
+      - db
+    restart: unless-stopped
+    environment:
+      - TZ=UTC  # 设置容器时区为UTC
+
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+      TZ: UTC  # 为数据库容器设置UTC时区
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data: 

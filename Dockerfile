@@ -15,6 +15,10 @@ RUN if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
 # 设置环境变量（可选）
 ENV PYTHONUNBUFFERED=1
+# 设置时区为UTC
+ENV TZ=UTC
+# 配置时区
+RUN ln -snf /usr/share/zoneinfo/UTC /etc/localtime && echo UTC > /etc/timezone
 
 # 暴露容器端口（如果需要）
 EXPOSE 8081

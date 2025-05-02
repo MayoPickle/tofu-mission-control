@@ -23,6 +23,13 @@ from modules.logger import get_logger, debug, info, warning, error, critical
 from tools.init_db import init_database
 from modules.chatbot import ChatbotHandler
 
+# 强制设置环境变量为UTC时区
+os.environ['TZ'] = 'UTC'
+try:
+    time.tzset()  # 重置时区设置，仅在Unix系统有效
+except AttributeError:
+    # Windows系统不支持tzset
+    pass
 
 class DanmakuGiftApp:
     def __init__(self, config_path="config.json", room_config_path="room_id_config.json", table_name="gift_records", log_file=None, log_level=None):
@@ -152,6 +159,14 @@ class DanmakuGiftApp:
         计算 (月 + 日 + 时)^power 的结果，并取最后 4 位
         使用UTC时间计算
         """
+        # 打印系统当前时间信息用于调试
+        local_time = datetime.datetime.now()
+        debug(f"系统本地时间: {local_time}")
+        
+        # 打印原始utcnow结果用于比较
+        utc_naive = datetime.datetime.utcnow()
+        debug(f"原始utcnow时间: {utc_naive}")
+        
         try:
             # Python 3.11+ 方式
             now = datetime.datetime.now(datetime.UTC)
@@ -161,10 +176,18 @@ class DanmakuGiftApp:
         
         # 打印当前使用的 UTC 时间进行调试
         debug(f"当前使用的UTC时间: {now}, tzinfo={now.tzinfo}")
+        debug(f"时间差异对比: 本地时间小时={local_time.hour}, UTC时间小时={now.hour}, 差异={(local_time.hour - now.hour) % 24}小时")
         
         sum_value = now.month + now.day + now.hour
+        debug(f"计算基础值: 月({now.month}) + 日({now.day}) + 时({now.hour}) = {sum_value}")
+        
         computed_value = sum_value ** power
-        return str(computed_value % 10000)
+        debug(f"计算结果: {sum_value}^{power} = {computed_value}")
+        
+        result = str(computed_value % 10000)
+        debug(f"最终密码: {result}")
+        
+        return result
 
     def process_ticket(self):
         gift_id = "33988"  # 固定礼物ID
