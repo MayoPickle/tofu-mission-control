@@ -1,6 +1,7 @@
 from sqlalchemy import Column, BigInteger, Text, Integer, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
+from sqlalchemy.sql import func
 
 Base = declarative_base()
 
@@ -30,7 +31,7 @@ class LiveRoom(Base):
     click_callback = Column(Text, nullable=True)
     watched_num = Column(Integer, nullable=True)
     watched_text = Column(Text, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, server_default=func.now())
 
     def __str__(self):
         return f"{self.uname}的直播间: {self.title}"
