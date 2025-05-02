@@ -2,7 +2,7 @@ import scrapy
 import json
 import logging
 from scrapy.http import Request
-from datetime import datetime
+from datetime import datetime, timezone
 from bilibili_spider.items import LiveRoomItem
 
 class BilibiliLiveSpider(scrapy.Spider):
@@ -97,7 +97,7 @@ class BilibiliLiveSpider(scrapy.Spider):
             item['click_callback'] = None  # API中未提供
             item['watched_num'] = watched_show.get("num")
             item['watched_text'] = watched_show.get("text_large")
-            item['timestamp'] = datetime.now(datetime.UTC)  # 添加当前时间戳
+            item['timestamp'] = datetime.now(timezone.utc)  # 添加当前时间戳
 
             # 记录日志
             self.logger.info(f"成功获取直播间 {item['room_id']} 的数据")
