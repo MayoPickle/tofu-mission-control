@@ -97,7 +97,12 @@ class BilibiliLiveSpider(scrapy.Spider):
             item['click_callback'] = None  # API中未提供
             item['watched_num'] = watched_show.get("num")
             item['watched_text'] = watched_show.get("text_large")
-            item['timestamp'] = datetime.now(datetime.UTC)  # 添加当前时间戳
+            try:
+                # Python 3.11+ 方式
+                item['timestamp'] = datetime.now(datetime.UTC)
+            except AttributeError:
+                # 旧版本 Python 兼容方式
+                item['timestamp'] = datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
 
             # 记录日志
             self.logger.info(f"成功获取直播间 {item['room_id']} 的数据")

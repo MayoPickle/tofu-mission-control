@@ -152,7 +152,12 @@ class DanmakuGiftApp:
         计算 (月 + 日 + 时)^power 的结果，并取最后 4 位
         使用UTC时间计算
         """
-        now = datetime.datetime.now(datetime.UTC)
+        try:
+            # Python 3.11+ 方式
+            now = datetime.datetime.now(datetime.UTC)
+        except AttributeError:
+            # 旧版本 Python 兼容方式
+            now = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
         sum_value = now.month + now.day + now.hour
         computed_value = sum_value ** power
         return str(computed_value % 10000)
@@ -197,7 +202,12 @@ class DanmakuGiftApp:
             debug(f"计算得到的密码: {target_number}")
 
             if not re.search(target_number, danmaku):
-                now = datetime.datetime.now(datetime.UTC)
+                try:
+                    # Python 3.11+ 方式
+                    now = datetime.datetime.now(datetime.UTC)
+                except AttributeError:
+                    # 旧版本 Python 兼容方式
+                    now = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
                 sum_value = now.month + now.day + now.hour
                 msg = f"密码错误! 弹幕 '{danmaku}' 不包含正确密码 {target_number}，无法触发脚本。UTC时间：{now}，基础值：{sum_value}，幂次：{power}"
                 error(msg)  # 使用error级别确保一定会打印
