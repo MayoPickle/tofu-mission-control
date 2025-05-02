@@ -2,18 +2,8 @@ import scrapy
 import json
 import logging
 from scrapy.http import Request
-from datetime import datetime, timezone
-import os
-import time
+from datetime import datetime
 from bilibili_spider.items import LiveRoomItem
-
-# 强制设置环境变量为UTC时区
-os.environ['TZ'] = 'UTC'
-try:
-    time.tzset()  # 重置时区设置，仅在Unix系统有效
-except AttributeError:
-    # Windows系统不支持tzset
-    pass
 
 class BilibiliLiveSpider(scrapy.Spider):
     name = "bilibili_live"
@@ -107,22 +97,7 @@ class BilibiliLiveSpider(scrapy.Spider):
             item['click_callback'] = None  # API中未提供
             item['watched_num'] = watched_show.get("num")
             item['watched_text'] = watched_show.get("text_large")
-            
-            # 打印时区调试信息
-            local_time = datetime.now()
-            self.logger.info(f"系统本地时间: {local_time}")
-            
-            try:
-                # Python 3.11+ 方式
-                now = datetime.now(datetime.UTC)
-            except AttributeError:
-                # 旧版本 Python 兼容方式 - 使用 timezone 确保是真正的 UTC
-                now = datetime.now(timezone.utc)
-                
-            self.logger.info(f"使用的UTC时间: {now}, 时区信息: {now.tzinfo}")
-            self.logger.info(f"时间差异: 本地={local_time.hour}时, UTC={now.hour}时, 差异={(local_time.hour - now.hour) % 24}小时")
-            
-            item['timestamp'] = now
+            item['timestamp'] = datetime.now(datetime.UTC)  # 添加当前时间戳
 
             # 记录日志
             self.logger.info(f"成功获取直播间 {item['room_id']} 的数据")

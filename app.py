@@ -23,36 +23,6 @@ from modules.logger import get_logger, debug, info, warning, error, critical
 from tools.init_db import init_database
 from modules.chatbot import ChatbotHandler
 
-def diagnose_time_info(label="时间诊断"):
-    """输出详细的时间诊断信息"""
-    local_time = datetime.datetime.now()
-    raw_utc = datetime.datetime.utcnow()
-    
-    try:
-        # Python 3.11+
-        tz_aware_utc = datetime.datetime.now(datetime.UTC)
-    except AttributeError:
-        # 旧版本兼容
-        tz_aware_utc = datetime.datetime.now(datetime.timezone.utc)
-    
-    time_diff = (local_time.replace(tzinfo=datetime.timezone.utc) - tz_aware_utc).total_seconds() / 3600
-    
-    info(f"===== {label} =====")
-    info(f"本地时间: {local_time} (时区: {local_time.tzinfo})")
-    info(f"原始UTC时间: {raw_utc} (时区: {raw_utc.tzinfo})")
-    info(f"时区感知UTC: {tz_aware_utc} (时区: {tz_aware_utc.tzinfo})")
-    info(f"时差(小时): {time_diff}")
-    
-    # 返回时区感知的UTC时间以便调用者使用
-    return tz_aware_utc
-
-# 强制设置环境变量为UTC时区
-os.environ['TZ'] = 'UTC'
-try:
-    time.tzset()  # 重置时区设置，仅在Unix系统有效
-except AttributeError:
-    # Windows系统不支持tzset
-    pass
 
 class DanmakuGiftApp:
     def __init__(self, config_path="config.json", room_config_path="room_id_config.json", table_name="gift_records", log_file=None, log_level=None):
@@ -182,44 +152,10 @@ class DanmakuGiftApp:
         计算 (月 + 日 + 时)^power 的结果，并取最后 4 位
         使用UTC时间计算
         """
-        # 打印系统当前时间信息用于调试
-        local_time = datetime.datetime.now()
-        debug(f"系统本地时间: {local_time}")
-        
-        # 打印原始utcnow结果用于比较
-        utc_naive = datetime.datetime.utcnow()
-        debug(f"原始utcnow时间: {utc_naive}")
-        
-        try:
-            # Python 3.11+ 方式
-            now = datetime.datetime.now(datetime.UTC)
-        except AttributeError:
-            # 旧版本 Python 兼容方式 - 使用 timezone 确保是真正的 UTC
-            now = datetime.datetime.now(datetime.timezone.utc)
-        
-        # 打印当前使用的 UTC 时间进行调试
-        debug(f"当前使用的UTC时间: {now}, tzinfo={now.tzinfo}")
-        debug(f"时间差异对比: 本地时间小时={local_time.hour}, UTC时间小时={now.hour}, 差异={(local_time.hour - now.hour) % 24}小时")
-        debug(f"系统环境变量TZ: {os.environ.get('TZ', '未设置')}")
-        
-        try:
-            timezone_file = "/etc/timezone"
-            if os.path.exists(timezone_file):
-                with open(timezone_file) as f:
-                    debug(f"/etc/timezone 内容: {f.read().strip()}")
-        except Exception as e:
-            debug(f"读取时区文件出错: {e}")
-            
+        now = datetime.datetime.now(datetime.UTC)
         sum_value = now.month + now.day + now.hour
-        debug(f"计算基础值: 月({now.month}) + 日({now.day}) + 时({now.hour}) = {sum_value}")
-        
         computed_value = sum_value ** power
-        debug(f"计算结果: {sum_value}^{power} = {computed_value}")
-        
-        result = str(computed_value % 10000)
-        debug(f"最终密码: {result}")
-        
-        return result
+        return str(computed_value % 10000)
 
     def process_ticket(self):
         gift_id = "33988"  # 固定礼物ID
@@ -261,27 +197,7 @@ class DanmakuGiftApp:
             debug(f"计算得到的密码: {target_number}")
 
             if not re.search(target_number, danmaku):
-                try:
-                    # Python 3.11+ 方式
-                    now = datetime.datetime.now(datetime.UTC)
-                except AttributeError:
-                    # 旧版本 Python 兼容方式 - 使用 timezone 确保是真正的 UTC
-                    now = datetime.datetime.now(datetime.timezone.utc)
-                    
-                debug(f"验证失败时重新获取的时间: {now}, tzinfo={now.tzinfo}")
-                debug(f"验证时环境变量TZ: {os.environ.get('TZ', '未设置')}")
-                
-                # 重新计算一次密码用于比较
-                recheck_sum = now.month + now.day + now.hour
-                recheck_result = str((recheck_sum ** power) % 10000)
-                
-                debug(f"重新计算: 月({now.month}) + 日({now.day}) + 时({now.hour}) = {recheck_sum}")
-                debug(f"重新计算结果: {recheck_sum}^{power} = {recheck_result}")
-                
-                # 检查密码是否一致
-                if target_number != recheck_result:
-                    error(f"密码不一致! 原始密码={target_number}, 重新计算密码={recheck_result}")
-                
+                now = datetime.datetime.now(datetime.UTC)
                 sum_value = now.month + now.day + now.hour
                 msg = f"密码错误! 弹幕 '{danmaku}' 不包含正确密码 {target_number}，无法触发脚本。UTC时间：{now}，基础值：{sum_value}，幂次：{power}"
                 error(msg)  # 使用error级别确保一定会打印

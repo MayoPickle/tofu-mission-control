@@ -104,7 +104,7 @@ def get_logger(name=None, log_file=None, log_level=logging.INFO):
 
 
 # 创建默认日志记录器
-logger = get_logger('tofu', log_level=logging.DEBUG)
+logger = get_logger('tofu')
 
 
 def debug(msg, *args, **kwargs):
