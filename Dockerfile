@@ -23,5 +23,5 @@ RUN ln -snf /usr/share/zoneinfo/UTC /etc/localtime && echo UTC > /etc/timezone
 # 暴露容器端口（如果需要）
 EXPOSE 8081
 
-# 运行主程序
-CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:8081", "app:app"]
+# 运行主程序 - 添加更多日志输出
+CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:8081", "--log-level=debug", "--access-logfile=-", "--error-logfile=-", "app:app"]
