@@ -101,8 +101,8 @@ class BilibiliLiveSpider(scrapy.Spider):
                 # Python 3.11+ 方式
                 item['timestamp'] = datetime.now(datetime.UTC)
             except AttributeError:
-                # 旧版本 Python 兼容方式
-                item['timestamp'] = datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+                # 旧版本 Python 兼容方式 - 使用 timezone 确保是真正的 UTC
+                item['timestamp'] = datetime.now(datetime.timezone.utc)
 
             # 记录日志
             self.logger.info(f"成功获取直播间 {item['room_id']} 的数据")
