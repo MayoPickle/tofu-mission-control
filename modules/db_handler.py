@@ -44,7 +44,7 @@ class DBHandler:
             error(f"数据库连接失败: {e}")
             raise
     
-    def add_gift_record(self, room_id, uid, uname, gift_id, gift_name, price):
+    def add_gift_record(self, room_id, uid, uname, gift_id, gift_name, price, gift_num=1):
         """
         添加礼物记录
         
@@ -55,6 +55,7 @@ class DBHandler:
             gift_id: 礼物ID
             gift_name: 礼物名称
             price: 礼物价格
+            gift_num: 礼物数量，默认为1
             
         Returns:
             记录ID
@@ -64,16 +65,16 @@ class DBHandler:
         
         try:
             now = datetime.datetime.now()
-            debug(f"添加礼物记录: room_id={room_id}, uid={uid}, uname={uname}, gift={gift_name}, price={price}")
+            debug(f"添加礼物记录: room_id={room_id}, uid={uid}, uname={uname}, gift={gift_name}, price={price}, num={gift_num}")
             
             cursor.execute(
                 f'''
                 INSERT INTO {self.table_name} 
-                (timestamp, room_id, uid, uname, gift_id, gift_name, price) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                (timestamp, room_id, uid, uname, gift_id, gift_name, price, gift_num) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 ''', 
-                (now, str(room_id), int(uid), uname, int(gift_id), gift_name, int(price))
+                (now, str(room_id), int(uid), uname, int(gift_id), gift_name, int(price), int(gift_num))
             )
             
             record_id = cursor.fetchone()[0]

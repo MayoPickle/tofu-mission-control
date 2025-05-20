@@ -110,7 +110,8 @@ class DanmakuGiftApp:
             "uname": "用户名",
             "gift_id": 礼物ID,
             "gift_name": "礼物名称",
-            "price": 礼物价格
+            "price": 礼物价格,
+            "gift_num": 礼物数量 (可选，默认为1)
         }
         """
         try:
@@ -123,6 +124,9 @@ class DanmakuGiftApp:
                 if field not in data:
                     return jsonify({"error": f"Missing required field: {field}"}), 400
             
+            # 获取礼物数量，如果不存在则默认为1
+            gift_num = data.get("gift_num", 1)
+            
             # 使用 DBHandler 保存记录
             record_id = self.db_handler.add_gift_record(
                 room_id=data["room_id"],
@@ -130,7 +134,8 @@ class DanmakuGiftApp:
                 uname=data["uname"],
                 gift_id=data["gift_id"],
                 gift_name=data["gift_name"],
-                price=data["price"]
+                price=data["price"],
+                gift_num=gift_num
             )
             
             info(f"Gift record saved with ID: {record_id}, from user: {data['uname']}, gift: {data['gift_name']}")

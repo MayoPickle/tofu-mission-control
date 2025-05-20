@@ -63,7 +63,8 @@ def init_database(env_path, table_name="gift_records", drop_existing=False):
             uname TEXT NOT NULL,
             gift_id INTEGER NOT NULL,
             gift_name TEXT NOT NULL,
-            price INTEGER NOT NULL
+            price INTEGER NOT NULL,
+            gift_num INTEGER DEFAULT 1
         )
         ''')
         
