@@ -450,7 +450,7 @@ class DanmakuGiftApp:
         """
         try:
             spider_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "missions", "tofu-bili-spider")
-            command = f"cd {spider_dir} && scrapy crawl bilibili_live -a room_ids='{room_ids_str}'"
+            command = f"cd {spider_dir} && scrapy crawl roomid_spider -a room_ids='{room_ids_str}'"
             
             debug(f"Running spider command: {command}")
             process = subprocess.Popen(

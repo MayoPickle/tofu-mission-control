@@ -36,3 +36,17 @@ class LiveRoom(Base):
     def __str__(self):
         return f"{self.uname}的直播间: {self.title}"
 
+
+class UniqueRoomID(Base):
+    """唯一房间ID数据模型"""
+    __tablename__ = "unique_room_ids"
+
+    room_id = Column(BigInteger, primary_key=True, index=True)
+    first_seen = Column(DateTime, nullable=False)
+    last_checked = Column(DateTime, nullable=False)
+    source = Column(Text, nullable=True)
+    note = Column(Text, nullable=True)
+
+    def __str__(self):
+        return f"房间ID: {self.room_id} (来源: {self.source})"
+

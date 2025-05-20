@@ -37,3 +37,12 @@ class LiveRoomItem(scrapy.Item):
     watched_num = scrapy.Field()
     watched_text = scrapy.Field()
     timestamp = scrapy.Field()
+
+
+class RoomIDItem(scrapy.Item):
+    """房间ID数据项，用于unique_room_ids表"""
+    room_id = scrapy.Field()
+    first_seen = scrapy.Field()
+    last_checked = scrapy.Field()
+    source = scrapy.Field()
+    note = scrapy.Field()

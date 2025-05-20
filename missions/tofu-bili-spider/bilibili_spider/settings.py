@@ -53,6 +53,7 @@ AUTOTHROTTLE_DEBUG = False
 # 启用Item Pipeline
 ITEM_PIPELINES = {
    "bilibili_spider.pipelines.BilibiliSpiderPipeline": 300,
+   "bilibili_spider.pipelines.RoomIDPipeline": 400,
 }
 
 # Set settings whose default value is deprecated to a future-proof value
