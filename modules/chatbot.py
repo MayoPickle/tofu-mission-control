@@ -184,7 +184,7 @@ class ChatbotHandler:
         
         :param user_message: 用户发送的消息内容
         :param room_id: 房间ID，用于上下文记忆
-        :return: 生成的回复内容，不超过20字
+        :return: 生成的回复内容，不超过40字
         """
         # 如果没有提供房间ID，使用默认值
         if room_id is None:
@@ -222,9 +222,9 @@ class ChatbotHandler:
             # 提取生成的文本
             generated_text = response.choices[0].message.content.strip()
             
-            # 确保回复不超过20个字
-            if len(generated_text) > 20:
-                generated_text = generated_text[:20]
+            # 确保回复不超过40个字
+            if len(generated_text) > 40:
+                generated_text = generated_text[:40]
             
             # 将助手回复添加到历史
             self.add_to_history(room_id, "assistant", generated_text)
