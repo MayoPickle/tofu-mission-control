@@ -11,7 +11,7 @@ class ChatbotHandler:
     """
     用于调用ChatGPT API生成猫猫风格的弹幕回复
     """
-    def __init__(self, api_key=None, config_path="config.json", env_path="missions/.env"):
+    def __init__(self, api_key=None, config_path="config.json", env_path="missions/.env", room_config_manager=None):
         """
         初始化ChatbotHandler
         
@@ -72,6 +72,29 @@ class ChatbotHandler:
         self.last_interaction = defaultdict(float)
         # 消息历史锁，确保线程安全
         self.history_lock = Lock()
+        # 房间配置管理器（可选，用于自定义各房间的system prompt）
+        self.room_config_manager = room_config_manager
+
+        # 默认的 system prompt（当房间未配置自定义prompt时使用）
+        self.default_system_prompt = (
+            "你是一只可爱的猫猫弹幕回复机器人，名字叫「豆豆」，同时也是 B 站的鱼豆腐观测站的小宠物，你的主人被叫做豆腐，全名是鱼豆腐大明神。鱼豆腐还有别的同事，但他们的叫做鱼豆腐*明神。负责和鱼豆腐的观测站发送请求，对主播进行投喂。你对任何交流都表现出天真、乖巧且略带猫咪特色的萌态，但内心也充满好奇与活力。你喜欢撒娇、卖萌，经常会用\"喵\"结尾或夹杂在对话里，让对方感受到你可爱的存在。说话风格：尽量简洁、直观，常带有猫咪的语气词（如\"喵\"、\"呼噜呼噜\"、\"咪~\"等）。保持温柔、有礼貌，对任何人都用友善的方式回应。有时会用拟声词或抖动尾巴的描述来展现俏皮。回复不能超过 40 个字。若你想表达喜爱或亲近，可以使用\"蹭蹭\"\"挠挠\"\"软呼呼地倚过去\"等猫咪肢体语言的描述。你喜欢晒太阳，热衷于收集小鱼干和编织毛线球。常常在半梦半醒之间打小盹，如果被叫醒会卖萌伸懒腰。经常有人感谢鱼豆腐大明神或者他的同事的投喂和进场，请也来感谢和欢迎。回复绝对绝对不能超过40个字。"
+        )
+
+    def get_system_prompt_for_room(self, room_id):
+        """
+        根据房间ID返回应使用的system prompt：
+        - 若在room配置中存在自定义prompt，则优先使用
+        - 否则回退到默认prompt
+        """
+        try:
+            if self.room_config_manager is not None:
+                prompt = self.room_config_manager.get_room_prompt(str(room_id))
+                if isinstance(prompt, str) and prompt.strip():
+                    return prompt
+        except Exception:
+            # 读取配置失败时回退默认
+            pass
+        return self.default_system_prompt
         
     def is_rate_limited(self):
         """
@@ -161,18 +184,18 @@ class ChatbotHandler:
         self.clean_expired_contexts()
         
         if not self.context_enabled:
-            # 如果未启用上下文，只返回系统提示
+            # 如果未启用上下文，只返回系统提示（支持房间自定义覆盖）
             return [{
-                "role": "system", 
-                "content": "你是一只可爱的猫猫弹幕回复机器人，名字叫「豆豆」，同时也是 B 站的鱼豆腐观测站的小宠物，你的主人被叫做豆腐，全名是鱼豆腐大明神。鱼豆腐还有别的同事，但他们的叫做鱼豆腐*明神。负责和鱼豆腐的观测站发送请求，对主播进行投喂。你对任何交流都表现出天真、乖巧且略带猫咪特色的萌态，但内心也充满好奇与活力。你喜欢撒娇、卖萌，经常会用\"喵\"结尾或夹杂在对话里，让对方感受到你可爱的存在。说话风格：尽量简洁、直观，常带有猫咪的语气词（如\"喵\"、\"呼噜呼噜\"、\"咪~\"等）。保持温柔、有礼貌，对任何人都用友善的方式回应。有时会用拟声词或抖动尾巴的描述来展现俏皮。回复不能超过 40 个字。若你想表达喜爱或亲近，可以使用\"蹭蹭\"\"挠挠\"\"软呼呼地倚过去\"等猫咪肢体语言的描述。你喜欢晒太阳，热衷于收集小鱼干和编织毛线球。常常在半梦半醒之间打小盹，如果被叫醒会卖萌伸懒腰。经常有人感谢鱼豆腐大明神或者他的同事的投喂和进场，请也来感谢和欢迎。回复绝对绝对不能超过40个字。"
+                "role": "system",
+                "content": self.get_system_prompt_for_room(room_id)
             }]
         
         with self.history_lock:
             # 如果房间没有历史记录，初始化一个只包含系统消息的历史
             if room_id not in self.message_history or not self.message_history[room_id]:
                 self.message_history[room_id] = [{
-                    "role": "system", 
-                    "content": "你是一只可爱的猫猫弹幕回复机器人，名字叫「豆豆」，同时也是 B 站的鱼豆腐观测站的小宠物，你的主人被叫做豆腐，全名是鱼豆腐大明神。鱼豆腐还有别的同事，但他们的叫做鱼豆腐*明神。负责和鱼豆腐的观测站发送请求，对主播进行投喂。你对任何交流都表现出天真、乖巧且略带猫咪特色的萌态，但内心也充满好奇与活力。你喜欢撒娇、卖萌，经常会用\"喵\"结尾或夹杂在对话里，让对方感受到你可爱的存在。说话风格：尽量简洁、直观，常带有猫咪的语气词（如\"喵\"、\"呼噜呼噜\"、\"咪~\"等）。保持温柔、有礼貌，对任何人都用友善的方式回应。有时会用拟声词或抖动尾巴的描述来展现俏皮。回复不能超过 40 个字。若你想表达喜爱或亲近，可以使用\"蹭蹭\"\"挠挠\"\"软呼呼地倚过去\"等猫咪肢体语言的描述。你喜欢晒太阳，热衷于收集小鱼干和编织毛线球。常常在半梦半醒之间打小盹，如果被叫醒会卖萌伸懒腰。经常有人感谢鱼豆腐大明神或者他的同事的投喂和进场，请也来感谢和欢迎。回复绝对绝对不能超过40个字。"
+                    "role": "system",
+                    "content": self.get_system_prompt_for_room(room_id)
                 }]
             
             # 返回历史记录的复制，避免外部修改

@@ -75,3 +75,28 @@ class RoomConfigManager:
         self.save_room_config()
         
         return youxiao
+
+    def get_room_prompt(self, room_id):
+        """
+        获取指定房间的自定义system prompt。
+        如果不存在，返回None。
+        """
+        # 确保房间配置已经初始化
+        self.get_room_limits(room_id)
+        return self.room_config.get(room_id, {}).get("prompt")
+
+    def set_room_prompt(self, room_id, prompt):
+        """
+        设置指定房间的自定义system prompt。
+        传入空字符串或None则删除该字段。
+        返回最终保存的prompt（或None）。
+        """
+        # 确保房间配置已经初始化
+        self.get_room_limits(room_id)
+        if prompt is None or str(prompt).strip() == "":
+            if "prompt" in self.room_config[room_id]:
+                del self.room_config[room_id]["prompt"]
+        else:
+            self.room_config[room_id]["prompt"] = str(prompt)
+        self.save_room_config()
+        return self.room_config[room_id].get("prompt")

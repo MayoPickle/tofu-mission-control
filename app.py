@@ -73,8 +73,8 @@ class DanmakuGiftApp:
         # ---------- 注册蓝图 ----------
         self.app.register_blueprint(gift_api_bp)
 
-        # 初始化chatbot处理器
-        self.chatbot_handler = ChatbotHandler(env_path="missions/.env")
+        # 初始化chatbot处理器（传入房间配置管理器以支持按房间自定义system prompt）
+        self.chatbot_handler = ChatbotHandler(env_path="missions/.env", room_config_manager=self.room_config_manager)
 
         # 注册路由
         self.register_routes()
