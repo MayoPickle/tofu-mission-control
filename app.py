@@ -99,6 +99,7 @@ class DanmakuGiftApp:
         self.app.add_url_rule('/setting', view_func=self.handle_setting, methods=['POST'])
         self.app.add_url_rule('/chatbot', view_func=self.handle_chatbot, methods=['POST'])
         self.app.add_url_rule('/sendlike', view_func=self.handle_sendlike, methods=['POST'])
+        self.app.add_url_rule('/entry_welcome', view_func=self.handle_entry_welcome, methods=['POST'])
 
     def handle_money(self):
         """
@@ -497,7 +498,7 @@ class DanmakuGiftApp:
             danmaku = data['danmaku']
             notifee = DanmakuSender()
             
-            # 检查是否包含有效的记仇机器人指令
+            # 检查是否包含有效的记仇机器人指令 或 欢迎模式指令
             if "记仇机器人有效299792" in danmaku:
                 # 设置房间状态为启用
                 self.room_config_manager.set_room_youxiao(room_id, True)
@@ -518,6 +519,24 @@ class DanmakuGiftApp:
                     "status": "success", 
                     "message": "Room disabled successfully",
                     "youxiao": False
+                }), 200
+            elif "启动欢迎模式" in danmaku or "开启欢迎模式" in danmaku:
+                self.room_config_manager.set_room_welcome_enabled(room_id, True)
+                info(f"房间 {room_id} 已开启欢迎模式")
+                notifee.send_danmaku(room_id, "呼噜~欢迎模式已开启喵！")
+                return jsonify({
+                    "status": "success",
+                    "message": "Welcome mode enabled",
+                    "welcome_enabled": True
+                }), 200
+            elif "停止欢迎模式" in danmaku or "关闭欢迎模式" in danmaku:
+                self.room_config_manager.set_room_welcome_enabled(room_id, False)
+                info(f"房间 {room_id} 已关闭欢迎模式")
+                notifee.send_danmaku(room_id, "咪~欢迎模式已关闭喵！")
+                return jsonify({
+                    "status": "success",
+                    "message": "Welcome mode disabled",
+                    "welcome_enabled": False
                 }), 200
                 
             else:
@@ -683,6 +702,83 @@ class DanmakuGiftApp:
             except:
                 pass
 
+    def handle_entry_welcome(self):
+        """
+        处理 /entry_welcome 接口：
+        - 使用 OpenAI 视觉模型描述头像
+        - 根据昵称与是否舰长生成欢迎语
+        - 通过弹幕发送器发送
+        """
+        try:
+            debug(f"收到entry_welcome请求: {request.json}")
+            data = request.json or {}
+
+            if 'room_id' not in data or 'uname' not in data:
+                return jsonify({"error": "无效请求，缺少 'room_id' 或 'uname'"}), 400
+
+            room_id = str(data.get('room_id'))
+            uname = str(data.get('uname') or "")
+            face = data.get('face')
+
+            # 舰长/守护判断
+            def to_int_safe(v, default=0):
+                try:
+                    return int(v)
+                except Exception:
+                    return default
+
+            guard_level = to_int_safe(data.get('guard_level'), 0)
+            privilege_type = to_int_safe(data.get('privilege_type'), 0)
+            is_captain_flag = bool(data.get('is_captain')) or guard_level > 0 or privilege_type > 0
+
+            # 若未开启欢迎模式则忽略
+            if not self.room_config_manager.get_room_welcome_enabled(room_id):
+                debug(f"房间 {room_id} 欢迎模式关闭，忽略进场欢迎。")
+                return jsonify({
+                    "status": "ignored",
+                    "message": "欢迎模式未开启，已忽略",
+                    "welcome_enabled": False
+                }), 200
+
+            # 头像描述
+            avatar_desc = self.chatbot_handler.describe_avatar(face) if face else ""
+
+            # 欢迎语
+            welcome_text = self.chatbot_handler.generate_welcome_message(
+                uname=uname,
+                is_captain=is_captain_flag,
+                avatar_desc=avatar_desc
+            )
+
+            # 发送弹幕
+            DanmakuSender().send_danmaku(room_id, welcome_text)
+
+            return jsonify({
+                "status": "success",
+                "message": "弹幕已发送",
+                "welcome": welcome_text,
+                "avatar_desc": avatar_desc,
+                "is_captain": is_captain_flag
+            }), 200
+
+        except Exception as e:
+            error(f"处理entry_welcome请求失败: {e}")
+            traceback.print_exc()
+            # 降级：尝试仍发送默认欢迎
+            try:
+                payload = request.json or {}
+                room_id = str(payload.get('room_id')) if payload and payload.get('room_id') is not None else None
+                uname = str(payload.get('uname') or "小伙伴")
+                fallback_text = f"欢迎{uname}喵～"
+                if room_id:
+                    DanmakuSender().send_danmaku(room_id, fallback_text)
+                return jsonify({
+                    "status": "partial_success",
+                    "message": "发生异常，已发送默认欢迎",
+                    "welcome": fallback_text
+                }), 200
+            except Exception:
+                return jsonify({"error": "服务器错误", "details": str(e)}), 500
     def run(self, host='0.0.0.0', port=8081, debug=True):
         self.app.run(host=host, port=port, debug=debug)
 

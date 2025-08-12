@@ -257,3 +257,96 @@ class ChatbotHandler:
         except Exception as e:
             traceback.print_exc()
             raise RuntimeError(f"生成回复异常: {str(e)}") 
+
+    def describe_avatar(self, image_url: str) -> str:
+        """
+        使用支持视觉的模型简要描述头像（中文，尽量不超过20字）。
+
+        :param image_url: 头像图片的URL
+        :return: 简短的头像描述；失败时返回空字符串
+        """
+        try:
+            if not image_url or not isinstance(image_url, str):
+                return ""
+
+            # 使用视觉模型；若未配置则默认 gpt-4o-mini
+            vision_model = os.environ.get("OPENAI_VISION_MODEL", "gpt-4o-mini")
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": "你是图像描述助手。仅用中文简要描述头像的主体与风格，避免臆测。"
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "请用不超过20字描述这张头像："},
+                        {"type": "image_url", "image_url": {"url": image_url}}
+                    ]
+                }
+            ]
+
+            response = self.client.chat.completions.create(
+                model=vision_model,
+                messages=messages,
+                max_tokens=60,
+                temperature=0.2
+            )
+
+            desc = (response.choices[0].message.content or "").strip()
+            if len(desc) > 30:
+                desc = desc[:30]
+            return desc
+        except Exception:
+            # 失败时静默降级
+            return ""
+
+    def generate_welcome_message(self, uname: str, is_captain: bool, avatar_desc: str | None = None) -> str:
+        """
+        生成欢迎文案（中文，猫猫风格，单句，尽量不超过30字；舰长需特别致意）。
+
+        :param uname: 用户名
+        :param is_captain: 是否为舰长（或同等守护）
+        :param avatar_desc: 头像描述（可选）
+        :return: 欢迎语
+        """
+        try:
+            if not uname:
+                uname = "小伙伴"
+
+            base_model = self.model or os.environ.get("OPENAI_MODEL", "gpt-3.5-turbo")
+
+            system_prompt = (
+                "你是直播间欢迎助手，以可爱猫猫风格写欢迎语。"
+                "要求：仅输出一句中文欢迎语，包含对方昵称；"
+                "若其为舰长需特别致意；可以自然融入头像特征；"
+                "不输出引号与解释；尽量≤30字。"
+            )
+
+            user_text_parts = [
+                f"昵称：{uname}",
+                f"身份：{'舰长' if is_captain else '普通观众'}"
+            ]
+            if avatar_desc:
+                user_text_parts.append(f"头像：{avatar_desc}")
+            user_text_parts.append("请直接给出最终欢迎语。")
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": "；".join(user_text_parts)}
+            ]
+
+            response = self.client.chat.completions.create(
+                model=base_model,
+                messages=messages,
+                max_tokens=60,
+                temperature=0.7
+            )
+
+            text = (response.choices[0].message.content or "").strip()
+            if len(text) > 40:
+                text = text[:40]
+            return text or (f"欢迎{uname}喵～" if not is_captain else f"欢迎舰长{uname}喵～")
+        except Exception:
+            # 降级为固定短句
+            return f"欢迎{uname}喵～" if not is_captain else f"欢迎舰长{uname}喵～"

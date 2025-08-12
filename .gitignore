@@ -66,3 +66,6 @@ account_cookies.json
 .env
 missions/.env
 missions/tofu-bili-spider/.env
+
+# 数据目录
+data/

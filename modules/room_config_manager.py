@@ -34,7 +34,8 @@ class RoomConfigManager:
             self.room_config[room_id] = {
                 "max_hourly_battery": self.global_config["max_hourly_battery_per_room"],
                 "max_daily_battery": self.global_config["max_daily_battery"],
-                "youxiao": False
+                "youxiao": False,
+                "welcome_enabled": False
             }
             self.save_room_config()
         
@@ -46,6 +47,11 @@ class RoomConfigManager:
                 del self.room_config[room_id]["enabled"]
             else:
                 self.room_config[room_id]["youxiao"] = False
+            self.save_room_config()
+
+        # 确保所有房间配置都有 welcome_enabled 字段
+        if "welcome_enabled" not in self.room_config[room_id]:
+            self.room_config[room_id]["welcome_enabled"] = False
             self.save_room_config()
 
         return (
@@ -75,6 +81,23 @@ class RoomConfigManager:
         self.save_room_config()
         
         return youxiao
+
+    def get_room_welcome_enabled(self, room_id: str) -> bool:
+        """
+        获取指定房间的欢迎模式开关（默认 False）。
+        """
+        self.get_room_limits(room_id)
+        return bool(self.room_config[room_id].get("welcome_enabled", False))
+
+    def set_room_welcome_enabled(self, room_id: str, enabled: bool) -> bool:
+        """
+        设置指定房间的欢迎模式开关，并保存。
+        返回最终状态。
+        """
+        self.get_room_limits(room_id)
+        self.room_config[room_id]["welcome_enabled"] = bool(enabled)
+        self.save_room_config()
+        return self.room_config[room_id]["welcome_enabled"]
 
     def get_room_prompt(self, room_id):
         """
