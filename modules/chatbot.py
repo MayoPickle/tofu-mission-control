@@ -3,6 +3,7 @@ import json
 import traceback
 import time
 from threading import Lock
+from typing import Any, Dict, Optional
 from collections import defaultdict
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -72,6 +73,9 @@ class ChatbotHandler:
         self.last_interaction = defaultdict(float)
         # 消息历史锁，确保线程安全
         self.history_lock = Lock()
+        # 用户记忆：按房间 -> 用户键 -> 记忆字典
+        self.user_memory_by_room: Dict[str, Dict[str, Dict[str, Any]]] = defaultdict(dict)
+        self.user_memory_lock = Lock()
         # 房间配置管理器（可选，用于自定义各房间的system prompt）
         self.room_config_manager = room_config_manager
 
@@ -139,6 +143,129 @@ class ChatbotHandler:
                     del self.message_history[room_id]
                 if room_id in self.last_interaction:
                     del self.last_interaction[room_id]
+
+        # 同步清理过期的用户记忆（基于房间最后活跃时间或用户自身last_seen）
+        with self.user_memory_lock:
+            current_time = time.time()
+            rooms_to_delete = []
+            for room_id, user_map in self.user_memory_by_room.items():
+                users_to_delete = []
+                for user_key, mem in user_map.items():
+                    last_seen = mem.get("last_seen", 0)
+                    if current_time - last_seen > self.context_expiry:
+                        users_to_delete.append(user_key)
+                for user_key in users_to_delete:
+                    del user_map[user_key]
+                if not user_map:
+                    rooms_to_delete.append(room_id)
+            for room_id in rooms_to_delete:
+                del self.user_memory_by_room[room_id]
+
+    @staticmethod
+    def _get_user_key(user_profile: Optional[Dict[str, Any]]) -> Optional[str]:
+        """基于 sender.uid 优先生成稳定的用户键，否则回退 uname。"""
+        if not user_profile:
+            return None
+        sender = user_profile.get("sender") or {}
+        uname = user_profile.get("uname") or sender.get("uname")
+        try:
+            uid = int(sender.get("uid")) if sender.get("uid") is not None else 0
+        except Exception:
+            uid = 0
+        if uid and uid > 0:
+            return f"uid:{uid}"
+        if uname:
+            return f"uname:{uname}"
+        return None
+
+    @staticmethod
+    def _extract_banned_words_from_message(text: str) -> list[str]:
+        """
+        从用户消息中抽取类似“不要说X/别说X/别提X”的禁用词（粗糙规则）。
+        返回去重后的词列表。
+        """
+        try:
+            import re
+            candidates = []
+            # 常见否定表达
+            patterns = [
+                r"不要说([\w\u4e00-\u9fa5·\.\-＿_]+)",
+                r"别说([\w\u4e00-\u9fa5·\.\-＿_]+)",
+                r"别提([\w\u4e00-\u9fa5·\.\-＿_]+)",
+                r"不要提([\w\u4e00-\u9fa5·\.\-＿_]+)"
+            ]
+            for p in patterns:
+                for m in re.findall(p, text):
+                    if m:
+                        candidates.append(m.strip())
+            # 基于标点进一步裁剪明显结尾
+            cleaned = []
+            for w in candidates:
+                w = w.strip("，,。.!！?？ ")
+                if w:
+                    cleaned.append(w)
+            # 去重保持顺序
+            seen = set()
+            result = []
+            for w in cleaned:
+                if w not in seen:
+                    seen.add(w)
+                    result.append(w)
+            return result
+        except Exception:
+            return []
+
+    def _update_user_memory(self, room_id: str, user_key: str, user_profile: Dict[str, Any], latest_message: str):
+        """合并/更新用户画像与偏好（禁用词、勋章、守护等）。"""
+        if not room_id or not user_key:
+            return
+        with self.user_memory_lock:
+            memory = self.user_memory_by_room[room_id].get(user_key, {})
+            # 基础档案
+            sender = user_profile.get("sender") or {}
+            medal = user_profile.get("medal") or {}
+            uname = user_profile.get("uname") or sender.get("uname") or ""
+            memory["uname"] = uname
+            memory["wealth_level"] = sender.get("wealth_level")
+            memory["guard_level"] = sender.get("guard_level")
+            memory["is_captain"] = bool(sender.get("is_captain")) or (int(sender.get("guard_level") or 0) > 0)
+            # 勋章信息
+            if medal:
+                memory["medal_name"] = medal.get("name")
+                memory["medal_level"] = medal.get("level")
+            # 偏好：禁用词
+            banned_words = set(memory.get("banned_words", []))
+            for w in self._extract_banned_words_from_message(latest_message or ""):
+                banned_words.add(w)
+            memory["banned_words"] = sorted(banned_words)
+            # 最近活跃时间
+            memory["last_seen"] = time.time()
+            # 存回
+            self.user_memory_by_room[room_id][user_key] = memory
+
+    def _build_user_memory_prompt(self, room_id: str, user_key: Optional[str]) -> str:
+        """将用户记忆压缩为简短中文说明，作为 system message 注入。"""
+        if not room_id or not user_key:
+            return ""
+        with self.user_memory_lock:
+            mem = self.user_memory_by_room.get(room_id, {}).get(user_key)
+            if not mem:
+                return ""
+            parts = ["关于当前说话用户的记忆（请严格遵守）："]
+            uname = mem.get("uname")
+            if uname:
+                parts.append(f"- 昵称：{uname}")
+            if mem.get("medal_name"):
+                parts.append(f"- 勋章：{mem.get('medal_name')} Lv{mem.get('medal_level')}")
+            if mem.get("is_captain"):
+                parts.append("- 身份：舰长/守护")
+            banned = mem.get("banned_words") or []
+            if banned:
+                parts.append(f"- 避免提及：{ '、'.join(banned) }")
+            parts.append("请在≤40字中文回复中尊重其偏好与禁用词。")
+            text = "\n".join(parts)
+            # 控制长度（避免占用过多上下文）
+            return text[:400]
         
     def add_to_history(self, room_id, role, content):
         """
@@ -201,12 +328,13 @@ class ChatbotHandler:
             # 返回历史记录的复制，避免外部修改
             return list(self.message_history[room_id])
         
-    def generate_response(self, user_message, room_id=None):
+    def generate_response(self, user_message, room_id=None, user_profile: Optional[Dict[str, Any]] = None):
         """
         调用ChatGPT API生成猫猫风格的弹幕回复
         
         :param user_message: 用户发送的消息内容
         :param room_id: 房间ID，用于上下文记忆
+        :param user_profile: 用户信息（可选），用于维护个体记忆并注入到历史
         :return: 生成的回复内容，不超过40字
         """
         # 如果没有提供房间ID，使用默认值
@@ -227,12 +355,33 @@ class ChatbotHandler:
         try:
             # 获取消息历史
             messages = self.get_message_history(room_id)
-            
-            # 添加用户消息到历史
+
+            # 如提供用户信息，先更新用户记忆，并构造记忆提示
+            user_key = self._get_user_key(user_profile)
+            if user_key:
+                try:
+                    self._update_user_memory(room_id, user_key, user_profile or {}, user_message or "")
+                except Exception:
+                    # 记忆失败不影响主流程
+                    pass
+            memory_prompt = self._build_user_memory_prompt(room_id, user_key) if user_key else ""
+
+            # 在首个system之后插入用户记忆的system message（仅注入，不写入持久历史）
+            messages_with_memory = list(messages)
+            if memory_prompt:
+                if messages_with_memory and messages_with_memory[0].get("role") == "system":
+                    messages_with_memory = [messages_with_memory[0], {"role": "system", "content": memory_prompt}] + messages_with_memory[1:]
+                else:
+                    messages_with_memory = [
+                        {"role": "system", "content": self.get_system_prompt_for_room(room_id)},
+                        {"role": "system", "content": memory_prompt},
+                    ] + messages_with_memory
+
+            # 添加用户消息到历史（持久）
             self.add_to_history(room_id, "user", user_message)
-            
-            # 添加当前用户消息
-            current_messages = messages + [{"role": "user", "content": user_message}]
+
+            # 当前请求的messages（含用户记忆注入）
+            current_messages = messages_with_memory + [{"role": "user", "content": user_message}]
             
             # 使用官方SDK调用API
             response = self.client.chat.completions.create(

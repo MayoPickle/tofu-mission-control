@@ -552,7 +552,7 @@ class DanmakuGiftApp:
     def handle_chatbot(self):
         """
         处理 /chatbot 接口，使用ChatGPT生成弹幕回复
-        接受格式：{"room_id": "房间ID", "message": "用户消息"}
+        接受格式：{"room_id": "房间ID", "message": "用户消息", ...可选用户字段}
         """
         try:
             debug(f"收到chatbot请求: {request.json}")
@@ -564,11 +564,18 @@ class DanmakuGiftApp:
                 
             room_id = str(data['room_id'])
             message = data['message']
+            # 封装用户画像（与直播弹幕结构对齐，但字段可选）
+            user_profile = {
+                "uname": data.get("uname") or (data.get("sender") or {}).get("uname"),
+                "sender": data.get("sender") or {},
+                "medal": data.get("medal") or {},
+                "meta": data.get("meta") or {},
+            }
             notifee = DanmakuSender()
             
             try:
                 # 使用ChatGPT生成回复，传递room_id以支持上下文记忆
-                response = self.chatbot_handler.generate_response(message, room_id=room_id)
+                response = self.chatbot_handler.generate_response(message, room_id=room_id, user_profile=user_profile)
                 
                 # 检查是否是冷却回复
                 if response == "喵喵喵喵喵！！！":
