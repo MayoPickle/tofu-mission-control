@@ -126,6 +126,16 @@ class DBHandler:
             action = payload.get("action")
             is_blind_gift = payload.get("is_blind_gift")
             blind_box = payload.get("blind_box") or None
+            gift_assets = payload.get("gift_assets") or None
+            tag_image = payload.get("tag_image")
+            effect = payload.get("effect")
+            effect_block = payload.get("effect_block")
+            svga_block = payload.get("svga_block")
+            combo_resources_id = payload.get("combo_resources_id")
+            face_effect_v2 = payload.get("face_effect_v2") or None
+            face_effect_id = payload.get("face_effect_id")
+            face_effect_type = payload.get("face_effect_type")
+            gift_tag = payload.get("gift_tag") or None
             sender = payload.get("sender") or None
             receiver = payload.get("receiver") or None
             tid = payload.get("tid")
@@ -146,12 +156,16 @@ class DBHandler:
                     timestamp, room_id, uid, uname, gift_id, gift_name, price, gift_num,
                     total_price, coin_type, gift_type, action, is_blind_gift,
                     blind_box, sender, receiver,
-                    tid, rnd, batch_combo_id, combo_total_coin, total_coin, combo_id
+                    tid, rnd, batch_combo_id, combo_total_coin, total_coin, combo_id,
+                    gift_assets, tag_image, effect, effect_block, svga_block,
+                    combo_resources_id, face_effect_v2, face_effect_id, face_effect_type, gift_tag
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s
                 ) RETURNING id
             '''
 
@@ -174,6 +188,16 @@ class DBHandler:
                     int(combo_total_coin) if combo_total_coin is not None else None,
                     int(total_coin) if total_coin is not None else None,
                     str(combo_id) if combo_id is not None else None,
+                    json_wrap(gift_assets) if gift_assets is not None else None,
+                    str(tag_image) if tag_image is not None else None,
+                    int(effect) if effect is not None else None,
+                    int(effect_block) if effect_block is not None else None,
+                    int(svga_block) if svga_block is not None else None,
+                    int(combo_resources_id) if combo_resources_id is not None else None,
+                    json_wrap(face_effect_v2) if face_effect_v2 is not None else None,
+                    int(face_effect_id) if face_effect_id is not None else None,
+                    int(face_effect_type) if face_effect_type is not None else None,
+                    json_wrap(gift_tag) if gift_tag is not None else None,
                 )
             )
 

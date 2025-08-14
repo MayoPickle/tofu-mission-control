@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+import argparse
 import traceback
 import re
 import datetime
@@ -26,7 +27,7 @@ from modules.chatbot import ChatbotHandler
 
 
 class DanmakuGiftApp:
-    def __init__(self, config_path="config.json", room_config_path="room_id_config.json", table_name="gift_records", log_file=None, log_level=None):
+    def __init__(self, config_path="config.json", room_config_path="room_id_config.json", table_name="gift_records", log_file=None, log_level=None, no_dep: bool = False):
         # 初始化 Flask
         self.app = Flask(__name__)
 
@@ -64,11 +65,14 @@ class DanmakuGiftApp:
         
         # ---------- 初始化礼物记录数据库 ----------
         self.table_name = table_name
-        # 确保表存在但不强制重建
-        init_database(env_path, table_name, drop_existing=False)
-        
-        # ---------- 初始化数据库处理器 ----------
-        self.db_handler = DBHandler(env_path, table_name)
+        self.no_dep = bool(no_dep)
+        if not self.no_dep:
+            # 确保表存在但不强制重建
+            init_database(env_path, table_name, drop_existing=False)
+            # ---------- 初始化数据库处理器 ----------
+            self.db_handler = DBHandler(env_path, table_name)
+        else:
+            self.db_handler = None
         
         # ---------- 注册蓝图 ----------
         self.app.register_blueprint(gift_api_bp)
@@ -117,6 +121,15 @@ class DanmakuGiftApp:
                 if field not in data:
                     return jsonify({"error": f"Missing required field: {field}"}), 400
             
+            # 在无依赖模式下跳过数据库写入
+            if self.no_dep or self.db_handler is None:
+                info(f"[no-dep] Skip DB record for gift: user={data['uname']}, gift={data['gift_name']}")
+                return jsonify({
+                    "status": "skipped",
+                    "message": "No dependency mode: DB write skipped",
+                    "record_id": None
+                }), 200
+
             # 使用新版写入（覆盖更丰富字段），向后兼容：缺失字段将写入 NULL
             record_id = self.db_handler.add_gift_record_v2(data)
             
@@ -772,7 +785,11 @@ class DanmakuGiftApp:
 
 
 if __name__ == '__main__':
-    app_instance = DanmakuGiftApp()
+    parser = argparse.ArgumentParser(description='Tofu Mission Control')
+    parser.add_argument('--no-dep', action='store_true', help='禁用外部依赖（例如数据库），跳过初始化并不进行持久化记录')
+    args = parser.parse_args()
+
+    app_instance = DanmakuGiftApp(no_dep=args.no_dep)
     app_instance.run()
 else:
     # 当被 gunicorn 等 WSGI 服务器导入时，提供全局的 app 对象

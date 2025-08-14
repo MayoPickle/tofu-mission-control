@@ -83,6 +83,17 @@ def init_database(env_path, table_name="gift_records", drop_existing=False):
         cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS combo_total_coin INTEGER")
         cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS total_coin INTEGER")
         cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS combo_id TEXT")
+        # 新增扩展多媒体与特效字段
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS gift_assets JSONB")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS tag_image TEXT")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS effect INTEGER")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS effect_block INTEGER")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS svga_block INTEGER")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS combo_resources_id INTEGER")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS face_effect_v2 JSONB")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS face_effect_id INTEGER")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS face_effect_type INTEGER")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS gift_tag JSONB")
 
         # 创建索引以加快查询速度
         cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_timestamp ON {table_name}(timestamp)')
