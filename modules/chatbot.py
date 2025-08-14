@@ -163,7 +163,7 @@ class ChatbotHandler:
 
     @staticmethod
     def _get_user_key(user_profile: Optional[Dict[str, Any]]) -> Optional[str]:
-        """基于 sender.uid 优先生成稳定的用户键，否则回退 uname。"""
+        """仅当 sender.uid > 0 时生成用户键；uid==0 或缺失则不记录（不回退 uname）。"""
         if not user_profile:
             return None
         sender = user_profile.get("sender") or {}
@@ -174,8 +174,7 @@ class ChatbotHandler:
             uid = 0
         if uid and uid > 0:
             return f"uid:{uid}"
-        if uname:
-            return f"uname:{uname}"
+        # 匿名或无uid时不记录任何个体记忆
         return None
 
     @staticmethod
