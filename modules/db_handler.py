@@ -3,6 +3,7 @@ PostgreSQL 数据库处理模块
 用于处理礼物记录相关的数据库操作和分析查询
 """
 import os
+import json
 import psycopg2
 import psycopg2.extras
 import datetime
@@ -86,6 +87,104 @@ class DBHandler:
             conn.rollback()
             error(f"添加礼物记录失败: {e}")
             raise e
+        finally:
+            cursor.close()
+            conn.close()
+
+    def add_gift_record_v2(self, payload: dict):
+        """
+        添加新版礼物记录（支持更多字段与 JSONB）。
+        期望 payload 为来自 /money 的完整 JSON。
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        try:
+            # 时间
+            ts = payload.get("timestamp")
+            if ts is None:
+                now_dt = datetime.datetime.now()
+            else:
+                try:
+                    now_dt = datetime.datetime.fromtimestamp(int(ts))
+                except Exception:
+                    now_dt = datetime.datetime.now()
+
+            # 必需字段回退
+            room_id = str(payload.get("room_id"))
+            uid = int(payload.get("uid"))
+            uname = str(payload.get("uname") or "")
+            gift_id = int(payload.get("gift_id"))
+            gift_name = str(payload.get("gift_name") or "")
+            price = int(payload.get("price"))
+            gift_num = int(payload.get("gift_num", 1))
+
+            # 可选扩展字段
+            total_price = payload.get("total_price")
+            coin_type = payload.get("coin_type")
+            gift_type = payload.get("gift_type")
+            action = payload.get("action")
+            is_blind_gift = payload.get("is_blind_gift")
+            blind_box = payload.get("blind_box") or None
+            sender = payload.get("sender") or None
+            receiver = payload.get("receiver") or None
+            tid = payload.get("tid")
+            rnd = payload.get("rnd")
+            batch_combo_id = payload.get("batch_combo_id")
+            combo_total_coin = payload.get("combo_total_coin")
+            total_coin = payload.get("total_coin")
+            combo_id = payload.get("combo_id")
+
+            debug(
+                f"添加礼物记录V2: room_id={room_id}, uid={uid}, uname={uname}, gift={gift_name}, "
+                f"price={price}, num={gift_num}, total_price={total_price}, coin_type={coin_type}, action={action}"
+            )
+
+            sql = f'''
+                INSERT INTO {self.table_name}
+                (
+                    timestamp, room_id, uid, uname, gift_id, gift_name, price, gift_num,
+                    total_price, coin_type, gift_type, action, is_blind_gift,
+                    blind_box, sender, receiver,
+                    tid, rnd, batch_combo_id, combo_total_coin, total_coin, combo_id
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s
+                ) RETURNING id
+            '''
+
+            json_wrap = psycopg2.extras.Json
+            cursor.execute(
+                sql,
+                (
+                    now_dt, room_id, uid, uname, gift_id, gift_name, price, gift_num,
+                    total_price if total_price is not None else None,
+                    str(coin_type) if coin_type is not None else None,
+                    int(gift_type) if gift_type is not None else None,
+                    str(action) if action is not None else None,
+                    bool(is_blind_gift) if is_blind_gift is not None else None,
+                    json_wrap(blind_box) if blind_box is not None else None,
+                    json_wrap(sender) if sender is not None else None,
+                    json_wrap(receiver) if receiver is not None else None,
+                    str(tid) if tid is not None else None,
+                    str(rnd) if rnd is not None else None,
+                    str(batch_combo_id) if batch_combo_id is not None else None,
+                    int(combo_total_coin) if combo_total_coin is not None else None,
+                    int(total_coin) if total_coin is not None else None,
+                    str(combo_id) if combo_id is not None else None,
+                )
+            )
+
+            record_id = cursor.fetchone()[0]
+            conn.commit()
+            info(f"礼物记录V2添加成功, ID: {record_id}")
+            return record_id
+        except Exception as e:
+            conn.rollback()
+            error(f"添加礼物记录V2失败: {e}")
+            raise
         finally:
             cursor.close()
             conn.close()

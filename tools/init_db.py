@@ -68,10 +68,27 @@ def init_database(env_path, table_name="gift_records", drop_existing=False):
         )
         ''')
         
+        # 为新字段进行向前兼容的 schema 升级
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS total_price INTEGER")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS coin_type TEXT")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS gift_type INTEGER")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS action TEXT")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS is_blind_gift BOOLEAN")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS blind_box JSONB")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS sender JSONB")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS receiver JSONB")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS tid TEXT")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS rnd TEXT")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS batch_combo_id TEXT")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS combo_total_coin INTEGER")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS total_coin INTEGER")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS combo_id TEXT")
+
         # 创建索引以加快查询速度
         cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_timestamp ON {table_name}(timestamp)')
         cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_uid ON {table_name}(uid)')
         cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_room_id ON {table_name}(room_id)')
+        cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_{table_name}_tid ON {table_name}(tid)')
         
         conn.commit()
         info(f"Database table '{table_name}' and indexes initialized successfully")

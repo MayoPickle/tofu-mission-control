@@ -104,16 +104,8 @@ class DanmakuGiftApp:
     def handle_money(self):
         """
         处理来自直播间的礼物记录，并按时间顺序存储
-        期望的请求格式：
-        {
-            "room_id": "房间ID",
-            "uid": 用户ID,
-            "uname": "用户名",
-            "gift_id": 礼物ID,
-            "gift_name": "礼物名称",
-            "price": 礼物价格,
-            "gift_num": 礼物数量 (可选，默认为1)
-        }
+        - 兼容老格式（最小字段集）
+        - 支持新格式（包含 total_price/coin_type/gift_type/action/is_blind_gift 等扩展字段，及 blind_box/sender/receiver JSON）
         """
         try:
             debug(f"Received money request: {request.json}")
@@ -125,19 +117,8 @@ class DanmakuGiftApp:
                 if field not in data:
                     return jsonify({"error": f"Missing required field: {field}"}), 400
             
-            # 获取礼物数量，如果不存在则默认为1
-            gift_num = data.get("gift_num", 1)
-            
-            # 使用 DBHandler 保存记录
-            record_id = self.db_handler.add_gift_record(
-                room_id=data["room_id"],
-                uid=data["uid"],
-                uname=data["uname"],
-                gift_id=data["gift_id"],
-                gift_name=data["gift_name"],
-                price=data["price"],
-                gift_num=gift_num
-            )
+            # 使用新版写入（覆盖更丰富字段），向后兼容：缺失字段将写入 NULL
+            record_id = self.db_handler.add_gift_record_v2(data)
             
             info(f"Gift record saved with ID: {record_id}, from user: {data['uname']}, gift: {data['gift_name']}")
             
