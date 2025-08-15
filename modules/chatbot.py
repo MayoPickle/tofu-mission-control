@@ -386,8 +386,8 @@ class ChatbotHandler:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=current_messages,
-                max_tokens=50,  # 限制回复长度
-                temperature=0.7  # 控制创造性，较低的值使输出更集中和确定
+                # max_tokens=50,  # 限制回复长度
+                # temperature=0.7  # 控制创造性，较低的值使输出更集中和确定
             )
             
             # 提取生成的文本
@@ -423,7 +423,7 @@ class ChatbotHandler:
             messages = [
                 {
                     "role": "system",
-                    "content": "你是图像描述助手。仅用中文简要描述头像的主体与风格，避免臆测。"
+                    "content": "你是图像描述助手。仅用中文简要描述头像的角色名字，如果不确定就描述主体与风格，避免臆测。"
                 },
                 {
                     "role": "user",
