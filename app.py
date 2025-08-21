@@ -568,7 +568,7 @@ class DanmakuGiftApp:
             notifee = DanmakuSender()
             
             try:
-                # 使用ChatGPT生成回复，传递room_id以支持上下文记忆
+                # 使用GPT Responses API生成回复，按房间使用previous_response_id续写
                 response = self.chatbot_handler.generate_response(message, room_id=room_id, user_profile=user_profile)
                 
                 # 检查是否是冷却回复
@@ -592,7 +592,7 @@ class DanmakuGiftApp:
                     "message": "弹幕已发送",
                     "response": response,
                     "rate_limited": response == "喵喵喵喵喵！！！",
-                    "with_context": self.chatbot_handler.context_enabled
+                    "response_id": self.chatbot_handler.room_last_response_id.get(str(room_id))
                 }), 200
                 
             except Exception as e:

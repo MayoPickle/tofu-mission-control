@@ -79,6 +79,10 @@ class ChatbotHandler:
         # 房间配置管理器（可选，用于自定义各房间的system prompt）
         self.room_config_manager = room_config_manager
 
+        # 使用 Responses API 续写：每个房间维护最后一次 response 的 ID
+        self.room_last_response_id: Dict[str, str] = {}
+        self.response_id_lock = Lock()
+
         # 默认的 system prompt（当房间未配置自定义prompt时使用）
         self.default_system_prompt = (
             "你是一只可爱的猫猫弹幕回复机器人，名字叫「豆豆」，同时也是 B 站的鱼豆腐观测站的小宠物，你的主人被叫做豆腐，全名是鱼豆腐大明神。鱼豆腐还有别的同事，但他们的叫做鱼豆腐*明神。负责和鱼豆腐的观测站发送请求，对主播进行投喂。你对任何交流都表现出天真、乖巧且略带猫咪特色的萌态，但内心也充满好奇与活力。你喜欢撒娇、卖萌，经常会用\"喵\"结尾或夹杂在对话里，让对方感受到你可爱的存在。说话风格：尽量简洁、直观，常带有猫咪的语气词（如\"喵\"、\"呼噜呼噜\"、\"咪~\"等）。保持温柔、有礼貌，对任何人都用友善的方式回应。有时会用拟声词或抖动尾巴的描述来展现俏皮。回复不能超过 40 个字。若你想表达喜爱或亲近，可以使用\"蹭蹭\"\"挠挠\"\"软呼呼地倚过去\"等猫咪肢体语言的描述。你喜欢晒太阳，热衷于收集小鱼干和编织毛线球。常常在半梦半醒之间打小盹，如果被叫醒会卖萌伸懒腰。经常有人感谢鱼豆腐大明神或者他的同事的投喂和进场，请也来感谢和欢迎。回复绝对绝对不能超过40个字。"
@@ -127,39 +131,8 @@ class ChatbotHandler:
             return False, False
         
     def clean_expired_contexts(self):
-        """清理过期的对话上下文"""
-        with self.history_lock:
-            current_time = time.time()
-            expired_rooms = []
-            
-            # 找出过期的房间
-            for room_id, last_time in self.last_interaction.items():
-                if current_time - last_time > self.context_expiry:
-                    expired_rooms.append(room_id)
-            
-            # 清理过期的房间上下文
-            for room_id in expired_rooms:
-                if room_id in self.message_history:
-                    del self.message_history[room_id]
-                if room_id in self.last_interaction:
-                    del self.last_interaction[room_id]
-
-        # 同步清理过期的用户记忆（基于房间最后活跃时间或用户自身last_seen）
-        with self.user_memory_lock:
-            current_time = time.time()
-            rooms_to_delete = []
-            for room_id, user_map in self.user_memory_by_room.items():
-                users_to_delete = []
-                for user_key, mem in user_map.items():
-                    last_seen = mem.get("last_seen", 0)
-                    if current_time - last_seen > self.context_expiry:
-                        users_to_delete.append(user_key)
-                for user_key in users_to_delete:
-                    del user_map[user_key]
-                if not user_map:
-                    rooms_to_delete.append(room_id)
-            for room_id in rooms_to_delete:
-                del self.user_memory_by_room[room_id]
+        """已弃用：上下文由 Responses API 管理。"""
+        return
 
     @staticmethod
     def _get_user_key(user_profile: Optional[Dict[str, Any]]) -> Optional[str]:
@@ -267,144 +240,115 @@ class ChatbotHandler:
             return text[:400]
         
     def add_to_history(self, room_id, role, content):
-        """
-        向指定房间的消息历史添加一条消息
-        
-        :param room_id: 房间ID
-        :param role: 消息角色（"user"或"assistant"）
-        :param content: 消息内容
-        """
-        if not self.context_enabled:
-            return
-            
-        with self.history_lock:
-            # 更新最后交互时间
-            self.last_interaction[room_id] = time.time()
-            
-            # 添加消息到历史
-            self.message_history[room_id].append({
-                "role": role,
-                "content": content
-            })
-            
-            # 限制历史消息数量
-            if len(self.message_history[room_id]) > self.max_context_messages:
-                # 保留system消息（如果有）和最新的max_context_messages条消息
-                system_messages = [msg for msg in self.message_history[room_id] if msg["role"] == "system"]
-                non_system_messages = [msg for msg in self.message_history[room_id] if msg["role"] != "system"]
-                
-                # 只保留最新的消息
-                non_system_messages = non_system_messages[-(self.max_context_messages - len(system_messages)):]
-                
-                # 重新组合消息历史
-                self.message_history[room_id] = system_messages + non_system_messages
+        """已弃用：不再维护本地消息历史。"""
+        return
         
     def get_message_history(self, room_id):
-        """
-        获取指定房间的消息历史
-        
-        :param room_id: 房间ID
-        :return: 消息历史列表
-        """
-        # 清理过期的上下文
-        self.clean_expired_contexts()
-        
-        if not self.context_enabled:
-            # 如果未启用上下文，只返回系统提示（支持房间自定义覆盖）
-            return [{
-                "role": "system",
-                "content": self.get_system_prompt_for_room(room_id)
-            }]
-        
-        with self.history_lock:
-            # 如果房间没有历史记录，初始化一个只包含系统消息的历史
-            if room_id not in self.message_history or not self.message_history[room_id]:
-                self.message_history[room_id] = [{
-                    "role": "system",
-                    "content": self.get_system_prompt_for_room(room_id)
-                }]
-            
-            # 返回历史记录的复制，避免外部修改
-            return list(self.message_history[room_id])
+        """已弃用：历史由 Responses API 负责。"""
+        return []
         
     def generate_response(self, user_message, room_id=None, user_profile: Optional[Dict[str, Any]] = None):
         """
-        调用ChatGPT API生成猫猫风格的弹幕回复
-        
+        使用 Responses API 生成回复；不再本地维护对话历史，改用 previous_response_id 按房间续写。
+
         :param user_message: 用户发送的消息内容
-        :param room_id: 房间ID，用于上下文记忆
-        :param user_profile: 用户信息（可选），用于维护个体记忆并注入到历史
+        :param room_id: 房间ID，用于按房间维持最后的 response_id
+        :param user_profile: 用户信息（可选），用于在内容中标注说话者（昵称/勋章/身份等）
         :return: 生成的回复内容，不超过40字
         """
-        # 如果没有提供房间ID，使用默认值
         if room_id is None:
             room_id = "default"
-            
-        # 检查速率限制
-        is_limited, is_cooling = self.is_rate_limited()
-        
+
+        # 速率限制
+        is_limited, _ = self.is_rate_limited()
         if is_limited:
-            if is_cooling:
-                # 在冷却期内
-                return "喵喵喵喵喵！！！"
-            else:
-                # 刚刚触发冷却
-                return "喵喵喵喵喵！！！"
-        
+            return "喵喵喵喵喵！！！"
+
         try:
-            # 获取消息历史
-            messages = self.get_message_history(room_id)
+            # 构造带用户标识的用户消息
+            sender = (user_profile or {}).get("sender") or {}
+            medal = (user_profile or {}).get("medal") or {}
+            uname = (user_profile or {}).get("uname") or sender.get("uname") or "小伙伴"
+            medal_name = medal.get("name")
+            medal_level = medal.get("level")
+            guard_level = int(sender.get("guard_level") or 0) if sender.get("guard_level") is not None else 0
+            is_captain = bool(sender.get("is_captain")) or guard_level > 0
 
-            # 如提供用户信息，先更新用户记忆，并构造记忆提示
-            user_key = self._get_user_key(user_profile)
-            if user_key:
-                try:
-                    self._update_user_memory(room_id, user_key, user_profile or {}, user_message or "")
-                except Exception:
-                    # 记忆失败不影响主流程
-                    pass
-            memory_prompt = self._build_user_memory_prompt(room_id, user_key) if user_key else ""
+            meta_lines = [f"说话人：{uname}"]
+            if medal_name:
+                meta_lines.append(f"勋章：{medal_name}{' Lv' + str(medal_level) if medal_level is not None else ''}")
+            if is_captain:
+                meta_lines.append("身份：舰长/守护")
+            meta_lines.append(f"消息：{user_message}")
+            user_content = "\n".join(meta_lines)
 
-            # 在首个system之后插入用户记忆的system message（仅注入，不写入持久历史）
-            messages_with_memory = list(messages)
-            if memory_prompt:
-                if messages_with_memory and messages_with_memory[0].get("role") == "system":
-                    messages_with_memory = [messages_with_memory[0], {"role": "system", "content": memory_prompt}] + messages_with_memory[1:]
-                else:
-                    messages_with_memory = [
+            # 读取该房间上一次的 response_id
+            with self.response_id_lock:
+                prev_id = self.room_last_response_id.get(str(room_id))
+
+            # 首次对话需注入房间级 system 提示；之后仅发送用户消息并通过 previous_response_id 续写
+            if prev_id:
+                response = self.client.responses.create(
+                    model=self.model,
+                    input=[{"role": "user", "content": user_content}],
+                    previous_response_id=prev_id,
+                    store=True
+                )
+            else:
+                response = self.client.responses.create(
+                    model=self.model,
+                    input=[
                         {"role": "system", "content": self.get_system_prompt_for_room(room_id)},
-                        {"role": "system", "content": memory_prompt},
-                    ] + messages_with_memory
+                        {"role": "user", "content": user_content}
+                    ],
+                    store=True
+                )
 
-            # 添加用户消息到历史（持久）
-            self.add_to_history(room_id, "user", user_message)
+            # 记录新的 response_id
+            with self.response_id_lock:
+                try:
+                    self.room_last_response_id[str(room_id)] = response.id
+                except Exception:
+                    pass
 
-            # 当前请求的messages（含用户记忆注入）
-            current_messages = messages_with_memory + [{"role": "user", "content": user_message}]
-            
-            # 使用官方SDK调用API
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=current_messages,
-                # max_tokens=50,  # 限制回复长度
-                # temperature=0.7  # 控制创造性，较低的值使输出更集中和确定
-            )
-            
-            # 提取生成的文本
-            generated_text = response.choices[0].message.content.strip()
-            
-            # 确保回复不超过40个字
+            # 提取输出文本
+            generated_text = None
+            try:
+                generated_text = getattr(response, "output_text", None)
+            except Exception:
+                generated_text = None
+            if not generated_text:
+                try:
+                    output = getattr(response, "output", None)
+                    if output and isinstance(output, list):
+                        for item in output:
+                            contents = item.get("content") if isinstance(item, dict) else None
+                            if contents and isinstance(contents, list):
+                                for c in contents:
+                                    text_part = c.get("text", {}) if isinstance(c, dict) else {}
+                                    if isinstance(text_part, dict):
+                                        val = text_part.get("value")
+                                        if isinstance(val, str) and val.strip():
+                                            generated_text = val
+                                            break
+                                if generated_text:
+                                    break
+                except Exception:
+                    pass
+            if not generated_text:
+                try:
+                    generated_text = str(response)
+                except Exception:
+                    generated_text = ""
+
+            generated_text = (generated_text or "").strip()
             if len(generated_text) > 40:
                 generated_text = generated_text[:40]
-            
-            # 将助手回复添加到历史
-            self.add_to_history(room_id, "assistant", generated_text)
-                
             return generated_text
-            
+
         except Exception as e:
             traceback.print_exc()
-            raise RuntimeError(f"生成回复异常: {str(e)}") 
+            raise RuntimeError(f"生成回复异常: {str(e)}")
 
     def describe_avatar(self, image_url: str) -> str:
         """
@@ -434,14 +378,16 @@ class ChatbotHandler:
                 }
             ]
 
-            response = self.client.chat.completions.create(
+            response = self.client.responses.create(
                 model=vision_model,
-                messages=messages,
-                max_tokens=60,
-                temperature=0.2
+                input=[
+                    {"role": "system", "content": messages[0]["content"]},
+                    {"role": "user", "content": messages[1]["content"]}
+                ],
+                store=False
             )
 
-            desc = (response.choices[0].message.content or "").strip()
+            desc = getattr(response, "output_text", "") or ""
             if len(desc) > 30:
                 desc = desc[:30]
             return desc
@@ -484,14 +430,16 @@ class ChatbotHandler:
                 {"role": "user", "content": "；".join(user_text_parts)}
             ]
 
-            response = self.client.chat.completions.create(
+            response = self.client.responses.create(
                 model=base_model,
-                messages=messages,
-                max_tokens=60,
-                temperature=0.7
+                input=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": "；".join(user_text_parts)}
+                ],
+                store=False
             )
 
-            text = (response.choices[0].message.content or "").strip()
+            text = getattr(response, "output_text", "") or ""
             if len(text) > 40:
                 text = text[:40]
             return text or (f"欢迎{uname}喵～" if not is_captain else f"欢迎舰长{uname}喵～")
