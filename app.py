@@ -22,7 +22,7 @@ from modules.like_sender import LikeSender
 from modules.db_handler import DBHandler
 from modules.gift_api import gift_api_bp
 from modules.logger import get_logger, debug, info, warning, error, critical
-from tools.init_db import init_database
+from tools.init_db import init_database, init_guard_table
 from modules.chatbot import ChatbotHandler
 
 
@@ -71,8 +71,13 @@ class DanmakuGiftApp:
             init_database(env_path, table_name, drop_existing=False)
             # ---------- 初始化数据库处理器 ----------
             self.db_handler = DBHandler(env_path, table_name)
+            # ---------- 初始化上舰记录数据库 ----------
+            self.guard_table_name = "guard_records"
+            init_guard_table(env_path, self.guard_table_name, drop_existing=False)
+            self.guard_db_handler = DBHandler(env_path, self.guard_table_name)
         else:
             self.db_handler = None
+            self.guard_db_handler = None
         
         # ---------- 注册蓝图 ----------
         self.app.register_blueprint(gift_api_bp)
@@ -100,6 +105,7 @@ class DanmakuGiftApp:
         self.app.add_url_rule('/pk_wanzun', view_func=self.handle_pk_wanzun, methods=['POST'])
         self.app.add_url_rule('/live_room_spider', view_func=self.start_live_room_spider, methods=['POST'])
         self.app.add_url_rule('/money', view_func=self.handle_money, methods=['POST'])
+        self.app.add_url_rule('/guard', view_func=self.handle_guard, methods=['POST'])
         self.app.add_url_rule('/setting', view_func=self.handle_setting, methods=['POST'])
         self.app.add_url_rule('/chatbot', view_func=self.handle_chatbot, methods=['POST'])
         self.app.add_url_rule('/sendlike', view_func=self.handle_sendlike, methods=['POST'])
@@ -141,6 +147,49 @@ class DanmakuGiftApp:
                 "record_id": record_id
             }), 200
             
+        except psycopg2.Error as e:
+            error(f"Database error: {e}")
+            traceback.print_exc()
+            return jsonify({"error": "Database error", "details": str(e)}), 500
+        except Exception as e:
+            error(f"Server error: {e}")
+            traceback.print_exc()
+            return jsonify({"error": "Server error", "details": str(e)}), 500
+
+    def handle_guard(self):
+        """
+        处理来自客户端的上舰（守护购买）事件，并写入独立 guard_records 表。
+        期待字段：room_id, uid, username, guard_level, count, price, gift_id, gift_name, start_time?, end_time?, raw_message?
+        """
+        try:
+            debug(f"Received guard request: {request.json}")
+            data = request.json or {}
+
+            # 校验必需字段
+            required_fields = [
+                "room_id", "uid", "username", "guard_level", "count",
+                "price", "gift_id", "gift_name"
+            ]
+            for field in required_fields:
+                if field not in data:
+                    return jsonify({"error": f"Missing required field: {field}"}), 400
+
+            # 无依赖模式则跳过写库
+            if self.no_dep or self.guard_db_handler is None:
+                info(f"[no-dep] Skip DB record for guard: user={data.get('username')}, level={data.get('guard_level')}")
+                return jsonify({
+                    "status": "skipped",
+                    "message": "No dependency mode: DB write skipped",
+                    "record_id": None
+                }), 200
+
+            record_id = self.guard_db_handler.add_guard_record(data)
+
+            return jsonify({
+                "status": "success",
+                "message": "Guard record saved successfully",
+                "record_id": record_id
+            }), 200
         except psycopg2.Error as e:
             error(f"Database error: {e}")
             traceback.print_exc()

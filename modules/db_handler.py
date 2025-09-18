@@ -91,6 +91,72 @@ class DBHandler:
             cursor.close()
             conn.close()
 
+    def add_guard_record(self, payload: dict):
+        """
+        添加上舰（守护）记录到 guard_records 表（或指定的表）。
+        期望 payload 为来自 /guard 的完整 JSON。
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        try:
+            now_dt = datetime.datetime.now()
+
+            # 安全转换
+            def to_int(value, default=None):
+                try:
+                    return int(value)
+                except Exception:
+                    return default
+
+            room_id = str(payload.get("room_id"))
+            uid = to_int(payload.get("uid"))
+            username = str(payload.get("username") or "")
+            guard_level = to_int(payload.get("guard_level"), 0)
+            count = to_int(payload.get("count"), 1)
+            price = to_int(payload.get("price"))
+            gift_id = to_int(payload.get("gift_id"))
+            gift_name = str(payload.get("gift_name") or "")
+            start_time = to_int(payload.get("start_time"))
+            end_time = to_int(payload.get("end_time"))
+            raw_message = payload.get("raw_message")
+
+            if room_id is None or uid is None or username == "" or guard_level is None:
+                raise ValueError("Missing required guard fields: room_id/uid/username/guard_level")
+
+            sql = f'''
+                INSERT INTO {self.table_name}
+                (
+                    timestamp, room_id, uid, username, guard_level, count, price,
+                    gift_id, gift_name, start_time, end_time, raw_message
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s
+                ) RETURNING id
+            '''
+
+            json_wrap = psycopg2.extras.Json
+            cursor.execute(
+                sql,
+                (
+                    now_dt, room_id, uid, username, guard_level, count, price,
+                    gift_id, gift_name, start_time, end_time,
+                    json_wrap(raw_message) if raw_message is not None else None,
+                )
+            )
+
+            record_id = cursor.fetchone()[0]
+            conn.commit()
+            info(f"上舰记录添加成功, ID: {record_id}, user: {username}, level: {guard_level}")
+            return record_id
+        except Exception as e:
+            conn.rollback()
+            error(f"添加上舰记录失败: {e}")
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+
     def add_gift_record_v2(self, payload: dict):
         """
         添加新版礼物记录（支持更多字段与 JSONB）。
