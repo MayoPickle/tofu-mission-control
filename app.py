@@ -106,6 +106,8 @@ class DanmakuGiftApp:
         self.app.add_url_rule('/live_room_spider', view_func=self.start_live_room_spider, methods=['POST'])
         self.app.add_url_rule('/money', view_func=self.handle_money, methods=['POST'])
         self.app.add_url_rule('/guard', view_func=self.handle_guard, methods=['POST'])
+        # 兼容客户端可能使用的前缀
+        self.app.add_url_rule('/api/guard', view_func=self.handle_guard, methods=['POST'])
         self.app.add_url_rule('/setting', view_func=self.handle_setting, methods=['POST'])
         self.app.add_url_rule('/chatbot', view_func=self.handle_chatbot, methods=['POST'])
         self.app.add_url_rule('/sendlike', view_func=self.handle_sendlike, methods=['POST'])
